@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BridgeMaster Server Tester</title>
+    <style>
+      :root {
+        --bg: #f4f6ff;
+        --card: #ffffff;
+        --ink: #1b1e33;
+        --accent: #0c7a6c;
+        --border: #dbe0ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: radial-gradient(circle at top left, #dce8ff, var(--bg));
+        color: var(--ink);
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 10px 25px rgba(23, 27, 64, 0.08);
+      }
+
+      label {
+        display: block;
+        margin-top: 10px;
+        font-size: 13px;
+      }
+
+      input,
+      select,
+      button,
+      textarea {
+        width: 100%;
+        margin-top: 4px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 9px 10px;
+        font-size: 14px;
+      }
+
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 12px;
+      }
+
+      button:hover {
+        filter: brightness(1.05);
+      }
+
+      pre {
+        background: #0b1020;
+        color: #a8c6ff;
+        border-radius: 12px;
+        padding: 14px;
+        white-space: pre-wrap;
+        min-height: 150px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>BridgeMaster 后端测试页</h1>
+      <p>通过本页直接调用 API，验证大厅、房间、叫牌、出牌流程。</p>
+
+      <div class="grid">
+        <section class="card">
+          <h3>创建房间</h3>
+          <label>roomName <input id="roomName" value="示例房间" /></label>
+          <label>creatorId <input id="creatorId" value="p1" /></label>
+          <label>creatorName <input id="creatorName" value="玩家1" /></label>
+          <button onclick="createRoom()">创建</button>
+        </section>
+
+        <section class="card">
+          <h3>加入房间</h3>
+          <label>inviteCode <input id="joinCode" /></label>
+          <label>playerId <input id="joinPlayerId" value="p2" /></label>
+          <label>playerName <input id="joinPlayerName" value="玩家2" /></label>
+          <button onclick="joinRoom()">加入</button>
+        </section>
+
+        <section class="card">
+          <h3>坐下</h3>
+          <label>inviteCode <input id="sitCode" /></label>
+          <label>playerId <input id="sitPlayerId" value="p1" /></label>
+          <label>
+            position
+            <select id="sitPosition">
+              <option>N</option>
+              <option>E</option>
+              <option>S</option>
+              <option>W</option>
+            </select>
+          </label>
+          <button onclick="sitDown()">坐下</button>
+        </section>
+
+        <section class="card">
+          <h3>叫牌</h3>
+          <label>inviteCode <input id="bidCode" /></label>
+          <label>playerId <input id="bidPlayerId" value="p1" /></label>
+          <label>
+            bid JSON
+            <textarea id="bidJson" rows="4">{"type":"pass"}</textarea>
+          </label>
+          <button onclick="submitBid()">提交叫牌</button>
+        </section>
+
+        <section class="card">
+          <h3>出牌</h3>
+          <label>inviteCode <input id="playCode" /></label>
+          <label>playerId <input id="playPlayerId" value="p1" /></label>
+          <label>
+            card JSON
+            <textarea id="cardJson" rows="4">{"suit":"S","rank":"A"}</textarea>
+          </label>
+          <button onclick="submitPlay()">提交出牌</button>
+        </section>
+
+        <section class="card">
+          <h3>大厅与房间状态</h3>
+          <label>inviteCode <input id="stateCode" /></label>
+          <button onclick="fetchRooms()">刷新大厅列表</button>
+          <button onclick="fetchRoom()">获取房间详情</button>
+        </section>
+
+        <section class="card">
+          <h3>实时推送 (SSE)</h3>
+          <label>inviteCode <input id="streamCode" /></label>
+          <button onclick="connectStream()">连接房间事件流</button>
+          <button onclick="disconnectStream()">断开事件流</button>
+          <label>实时事件日志</label>
+          <pre id="events"></pre>
+        </section>
+      </div>
+
+      <h3>响应结果</h3>
+      <pre id="output"></pre>
+    </div>
+
+    <script>
+      let eventSource = null;
+
+      function fillInviteCodeEverywhere(code) {
+        ["joinCode", "sitCode", "bidCode", "playCode", "stateCode", "streamCode"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el.value) {
+            el.value = code;
+          }
+        });
+      }
+
+      function appendEventLine(text) {
+        const el = document.getElementById("events");
+        const lines = el.textContent ? el.textContent.split("\n") : [];
+        lines.push(text);
+        el.textContent = lines.slice(-40).join("\n");
+      }
+
+      async function request(url, method = "GET", body) {
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json();
+        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+
+        if (data && data.id) {
+          fillInviteCodeEverywhere(data.id);
+        }
+      }
+
+      function createRoom() {
+        request("/api/lobby/rooms", "POST", {
+          roomName: document.getElementById("roomName").value,
+          creatorId: document.getElementById("creatorId").value,
+          creatorName: document.getElementById("creatorName").value,
+        });
+      }
+
+      function joinRoom() {
+        request(`/api/lobby/rooms/${document.getElementById("joinCode").value}/join`, "POST", {
+          playerId: document.getElementById("joinPlayerId").value,
+          playerName: document.getElementById("joinPlayerName").value,
+        });
+      }
+
+      function sitDown() {
+        request(`/api/lobby/rooms/${document.getElementById("sitCode").value}/sit`, "POST", {
+          playerId: document.getElementById("sitPlayerId").value,
+          position: document.getElementById("sitPosition").value,
+        });
+      }
+
+      function submitBid() {
+        request(`/api/lobby/rooms/${document.getElementById("bidCode").value}/bid`, "POST", {
+          playerId: document.getElementById("bidPlayerId").value,
+          bid: JSON.parse(document.getElementById("bidJson").value),
+        });
+      }
+
+      function submitPlay() {
+        request(`/api/lobby/rooms/${document.getElementById("playCode").value}/play`, "POST", {
+          playerId: document.getElementById("playPlayerId").value,
+          card: JSON.parse(document.getElementById("cardJson").value),
+        });
+      }
+
+      function fetchRooms() {
+        request("/api/lobby/rooms");
+      }
+
+      function fetchRoom() {
+        request(`/api/lobby/rooms/${document.getElementById("stateCode").value}`);
+      }
+
+      function connectStream() {
+        const code = document.getElementById("streamCode").value.trim();
+        if (!code) {
+          appendEventLine("请先输入 inviteCode");
+          return;
+        }
+
+        disconnectStream();
+        eventSource = new EventSource(`/api/lobby/rooms/${code}/stream`);
+
+        eventSource.addEventListener("snapshot", (ev) => {
+          const payload = JSON.parse(ev.data);
+          appendEventLine(`[snapshot] phase=${payload.room.gameState.phase}`);
+          document.getElementById("output").textContent = JSON.stringify(payload.room, null, 2);
+        });
+
+        eventSource.addEventListener("room_event", (ev) => {
+          const payload = JSON.parse(ev.data);
+          appendEventLine(
+            `#${payload.sequence} ${payload.type} phase=${payload.room.gameState.phase} turn=${payload.room.gameState.turn}`,
+          );
+          document.getElementById("output").textContent = JSON.stringify(payload.room, null, 2);
+        });
+
+        eventSource.onerror = () => {
+          appendEventLine("连接中断或房间不存在");
+        };
+
+        appendEventLine(`已连接房间 ${code}`);
+      }
+
+      function disconnectStream() {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+          appendEventLine("已断开事件流");
+        }
+      }
+    </script>
+  </body>
+</html>
