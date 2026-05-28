@@ -59,6 +59,7 @@ export interface Contract {
   side: "NS" | "EW";
   doubled: boolean;
   redoubled: boolean;
+  isGameContract: boolean;
 }
 
 export interface BridgeScore {
@@ -70,6 +71,21 @@ export interface BridgeScore {
   targetTricks?: number;
   overtricks?: number;
   undertricks?: number;
+  contractPoints?: number;
+  overtrickPoints?: number;
+  bonusPoints?: number;
+  penaltyPoints?: number;
+  gameBonus?: number;
+  slamBonus?: number;
+  insultBonus?: number;
+  doubled?: boolean;
+  redoubled?: boolean;
+  isGameContract?: boolean;
+  nsPoints: number;
+  ewPoints: number;
+  winnerSide: "NS" | "EW" | "tie";
+  loserSide?: "NS" | "EW";
+  playerPoints: Record<string, number>;
 }
 
 export interface BridgeGameState {
