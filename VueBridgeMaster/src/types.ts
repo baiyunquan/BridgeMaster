@@ -76,6 +76,8 @@ export interface BridgeGameState {
   dealer: PlayerPosition;
   turn: PlayerPosition | null;
   playersByPosition: Record<PlayerPosition, string>;
+  dummyPosition: PlayerPosition | null;
+  isDummyRevealed: boolean;
   hands: Record<PlayerPosition, Card[]>;
   bidHistory: BidEntry[];
   contract: Contract | null;
@@ -108,6 +110,8 @@ export interface RoomEvent {
   type:
     | "room_created"
     | "player_joined"
+    | "player_left"
+    | "game_reset"
     | "player_sat"
     | "game_started"
     | "bid_submitted"
@@ -117,4 +121,11 @@ export interface RoomEvent {
   sequence: number;
   at: number;
   room: Room;
+}
+
+export interface RoomStreamSnapshot {
+  inviteCode: string;
+  at: number;
+  room: Room;
+  events: RoomEvent[];
 }

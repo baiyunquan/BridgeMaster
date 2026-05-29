@@ -3,10 +3,15 @@ import { BridgeGameState, Player, PlayerPosition, Room, RoomSummary } from "./ty
 
 const POSITIONS: PlayerPosition[] = ["N", "E", "S", "W"];
 const INVITE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const MAX_ROOM_EVENT_HISTORY = 120;
+const PLAYER_HEARTBEAT_TIMEOUT_MS = Number(process.env.PLAYER_HEARTBEAT_TIMEOUT_MS) || 60_000;
+const PLAYER_HEARTBEAT_SWEEP_MS = Number(process.env.PLAYER_HEARTBEAT_SWEEP_MS) || 10_000;
 
 export type RoomEventType =
   | "room_created"
   | "player_joined"
+  | "player_left"
+  | "game_reset"
   | "player_sat"
   | "game_started"
   | "bid_submitted"
@@ -29,6 +34,8 @@ function emptyGameState(): BridgeGameState {
     dealer: "N",
     turn: null,
     playersByPosition: { N: "", E: "", S: "", W: "" },
+    dummyPosition: null,
+    isDummyRevealed: false,
     hands: { N: [], E: [], S: [], W: [] },
     bidHistory: [],
     contract: null,
@@ -49,7 +56,15 @@ export class LobbyManager {
 
   private roomEventSequence = new Map<string, number>();
 
-  private constructor() {}
+  private roomEventHistory = new Map<string, RoomEvent[]>();
+
+  private roomHeartbeats = new Map<string, Map<string, number>>();
+
+  private constructor() {
+    setInterval(() => {
+      this.releaseStalePlayers();
+    }, PLAYER_HEARTBEAT_SWEEP_MS).unref();
+  }
 
   public static getInstance(): LobbyManager {
     if (!LobbyManager.instance) {
@@ -80,6 +95,7 @@ export class LobbyManager {
     };
 
     this.rooms.set(inviteCode, room);
+    this.touchPlayerPresence(room.id, creatorId);
     this.emitRoomEvent(room, "room_created");
     return this.cloneRoom(room);
   }
@@ -89,6 +105,8 @@ export class LobbyManager {
 
     const existingPlayer = room.players.find((p) => p.id === playerId);
     if (existingPlayer) {
+      existingPlayer.name = playerName;
+      this.touchPlayerPresence(room.id, playerId);
       return this.cloneRoom(room);
     }
 
@@ -101,6 +119,8 @@ export class LobbyManager {
       name: playerName,
       position: null,
     });
+
+    this.touchPlayerPresence(room.id, playerId);
 
     this.emitRoomEvent(room, "player_joined");
 
@@ -120,6 +140,7 @@ export class LobbyManager {
     }
 
     player.position = position;
+  this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "player_sat");
 
     if (this.isReadyToStart(room)) {
@@ -152,6 +173,7 @@ export class LobbyManager {
     }
 
     room.gameState = game.submitBid(playerId, bid);
+  this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "bid_submitted");
     if (room.gameState.phase === "finished") {
       this.emitRoomEvent(room, "game_finished");
@@ -168,11 +190,43 @@ export class LobbyManager {
     }
 
     room.gameState = game.submitCard(playerId, card);
+  this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "card_submitted");
     if (room.gameState.phase === "finished") {
       this.emitRoomEvent(room, "game_finished");
     }
     return this.cloneRoom(room);
+  }
+
+  public leaveRoomByCode(inviteCode: string, playerId: string): Room | null {
+    const room = this.getRoomOrThrow(inviteCode);
+    if (!room.players.some((player) => player.id === playerId)) {
+      return this.cloneRoom(room);
+    }
+
+    return this.releasePlayerFromRoom(room, playerId);
+  }
+
+  public touchPlayerHeartbeat(inviteCode: string, playerId: string): Room {
+    const room = this.getRoomOrThrow(inviteCode);
+    if (!room.players.some((player) => player.id === playerId)) {
+      throw new Error("Player is not in this room.");
+    }
+
+    this.touchPlayerPresence(room.id, playerId);
+    return this.cloneRoom(room);
+  }
+
+  public getRoomEvents(inviteCode: string): RoomEvent[] {
+    const room = this.getRoomOrThrow(inviteCode);
+    return this.cloneRoomEvents(this.roomEventHistory.get(room.id) ?? []);
+  }
+
+  public getRoomSnapshot(inviteCode: string): { room: Room; events: RoomEvent[] } {
+    return {
+      room: this.getRoom(inviteCode),
+      events: this.getRoomEvents(inviteCode),
+    };
   }
 
   public subscribeRoom(inviteCode: string, listener: RoomEventListener): () => void {
@@ -198,10 +252,6 @@ export class LobbyManager {
         this.roomListeners.delete(code);
       }
     };
-  }
-
-  public getRoomSnapshot(inviteCode: string): Room {
-    return this.getRoom(inviteCode);
   }
 
   private getRoomOrThrow(inviteCode: string): Room {
@@ -273,12 +323,93 @@ export class LobbyManager {
     return JSON.parse(JSON.stringify(room)) as Room;
   }
 
-  private emitRoomEvent(room: Room, type: RoomEventType): void {
-    const listeners = this.roomListeners.get(room.id);
-    if (!listeners || listeners.size === 0) {
+  private cloneRoomEvents(events: RoomEvent[]): RoomEvent[] {
+    return JSON.parse(JSON.stringify(events)) as RoomEvent[];
+  }
+
+  private touchPlayerPresence(inviteCode: string, playerId: string): void {
+    let roomPresence = this.roomHeartbeats.get(inviteCode);
+    if (!roomPresence) {
+      roomPresence = new Map<string, number>();
+      this.roomHeartbeats.set(inviteCode, roomPresence);
+    }
+
+    roomPresence.set(playerId, Date.now());
+  }
+
+  private releasePlayerFromRoom(room: Room, playerId: string): Room | null {
+    room.players = room.players.filter((player) => player.id !== playerId);
+    this.removePlayerPresence(room.id, playerId);
+
+    if (room.players.length === 0) {
+      this.clearRoomState(room.id);
+      return null;
+    }
+
+    room.creatorId = room.players[0].id;
+
+    if (room.gameState.phase !== "waiting") {
+      for (const player of room.players) {
+        player.position = null;
+      }
+
+      room.gameState = emptyGameState();
+      this.games.delete(room.id);
+      this.emitRoomEvent(room, "player_left");
+      this.emitRoomEvent(room, "game_reset");
+      return this.cloneRoom(room);
+    }
+
+    this.emitRoomEvent(room, "player_left");
+    return this.cloneRoom(room);
+  }
+
+  private removePlayerPresence(inviteCode: string, playerId: string): void {
+    const roomPresence = this.roomHeartbeats.get(inviteCode);
+    if (!roomPresence) {
       return;
     }
 
+    roomPresence.delete(playerId);
+    if (roomPresence.size === 0) {
+      this.roomHeartbeats.delete(inviteCode);
+    }
+  }
+
+  private clearRoomState(inviteCode: string): void {
+    this.rooms.delete(inviteCode);
+    this.games.delete(inviteCode);
+    this.roomListeners.delete(inviteCode);
+    this.roomEventSequence.delete(inviteCode);
+    this.roomEventHistory.delete(inviteCode);
+    this.roomHeartbeats.delete(inviteCode);
+  }
+
+  private releaseStalePlayers(): void {
+    const now = Date.now();
+
+    for (const [inviteCode, room] of this.rooms.entries()) {
+      const roomPresence = this.roomHeartbeats.get(inviteCode);
+      if (!roomPresence) {
+        continue;
+      }
+
+      const stalePlayers = room.players
+        .filter((player) => now - (roomPresence.get(player.id) ?? 0) >= PLAYER_HEARTBEAT_TIMEOUT_MS)
+        .map((player) => player.id);
+
+      for (const playerId of stalePlayers) {
+        const activeRoom = this.rooms.get(inviteCode);
+        if (!activeRoom || !activeRoom.players.some((player) => player.id === playerId)) {
+          continue;
+        }
+
+        this.releasePlayerFromRoom(activeRoom, playerId);
+      }
+    }
+  }
+
+  private emitRoomEvent(room: Room, type: RoomEventType): void {
     const sequence = (this.roomEventSequence.get(room.id) ?? 0) + 1;
     this.roomEventSequence.set(room.id, sequence);
 
@@ -289,6 +420,15 @@ export class LobbyManager {
       at: Date.now(),
       room: this.cloneRoom(room),
     };
+
+    const history = this.roomEventHistory.get(room.id) ?? [];
+    history.push(event);
+    this.roomEventHistory.set(room.id, history.slice(-MAX_ROOM_EVENT_HISTORY));
+
+    const listeners = this.roomListeners.get(room.id);
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
 
     for (const listener of listeners) {
       listener(event);

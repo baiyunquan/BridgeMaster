@@ -7,7 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="panel score-panel">
+  <section class="stage-block score-panel">
     <div class="section-title">
       <h3>结算结果</h3>
       <span class="badge ok">{{ score.contractResult }}</span>

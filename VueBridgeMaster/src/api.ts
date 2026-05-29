@@ -14,6 +14,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(payload.error ?? response.statusText);
   }
 
+  if (response.status === 204) {
+    return null as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -25,17 +29,40 @@ export function getRoom(inviteCode: string): Promise<Room> {
   return request<Room>(`/api/lobby/rooms/${inviteCode}`);
 }
 
-export function createRoom(roomName: string, creatorId: string, creatorName: string): Promise<Room> {
+export function createRoom(roomName: string, creatorId: string, creatorName?: string): Promise<Room> {
   return request<Room>("/api/lobby/rooms", {
     method: "POST",
     body: JSON.stringify({ roomName, creatorId, creatorName }),
   });
 }
 
-export function joinRoom(inviteCode: string, playerId: string, playerName: string): Promise<Room> {
+export function joinRoom(inviteCode: string, playerId: string, playerName?: string): Promise<Room> {
   return request<Room>(`/api/lobby/rooms/${inviteCode}/join`, {
     method: "POST",
     body: JSON.stringify({ playerId, playerName }),
+  });
+}
+
+export function leaveRoom(inviteCode: string, playerId: string): Promise<Room | null> {
+  return request<Room | null>(`/api/lobby/rooms/${inviteCode}/leave`, {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
+  });
+}
+
+export function leaveRoomWithBeacon(inviteCode: string, playerId: string): boolean {
+  if (!inviteCode || !playerId || typeof navigator === "undefined" || !navigator.sendBeacon) {
+    return false;
+  }
+
+  const payload = new Blob([JSON.stringify({ playerId })], { type: "application/json" });
+  return navigator.sendBeacon(`/api/lobby/rooms/${inviteCode}/leave`, payload);
+}
+
+export function sendHeartbeat(inviteCode: string, playerId: string): Promise<null> {
+  return request<null>(`/api/lobby/rooms/${inviteCode}/heartbeat`, {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
   });
 }
 

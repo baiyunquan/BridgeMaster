@@ -93,6 +93,8 @@ export interface BridgeGameState {
   dealer: PlayerPosition;
   turn: PlayerPosition | null;
   playersByPosition: Record<PlayerPosition, string>;
+  dummyPosition: PlayerPosition | null;
+  isDummyRevealed: boolean;
   hands: Record<PlayerPosition, Card[]>;
   bidHistory: BidEntry[];
   contract: Contract | null;

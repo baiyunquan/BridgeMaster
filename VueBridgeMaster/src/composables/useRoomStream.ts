@@ -1,6 +1,6 @@
 import { onBeforeUnmount, ref, watch, type Ref } from "vue";
 import { getRoom } from "@/api";
-import type { Room, RoomEvent } from "@/types";
+import type { Room, RoomEvent, RoomStreamSnapshot } from "@/types";
 
 export function useRoomStream(inviteCode: Ref<string>) {
   const room = ref<Room | null>(null);
@@ -35,8 +35,9 @@ export function useRoomStream(inviteCode: Ref<string>) {
 
     source = new EventSource(`/api/lobby/rooms/${code}/stream`);
     source.addEventListener("snapshot", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as { room: Room };
+      const payload = JSON.parse((event as MessageEvent).data) as RoomStreamSnapshot;
       room.value = payload.room;
+      events.value = payload.events;
       connected.value = true;
     });
 

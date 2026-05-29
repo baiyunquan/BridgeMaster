@@ -16,6 +16,8 @@ export class BridgeGame {
       dealer: "N",
       turn: null,
       playersByPosition,
+      dummyPosition: null,
+      isDummyRevealed: false,
       hands: { N: [], E: [], S: [], W: [] },
       bidHistory: [],
       contract: null,
@@ -57,6 +59,8 @@ export class BridgeGame {
     this.state.hands = hands;
     this.state.phase = "bidding";
     this.state.turn = this.state.dealer;
+    this.state.dummyPosition = null;
+    this.state.isDummyRevealed = false;
     this.state.bidHistory = [];
     this.state.contract = null;
     this.state.tricks = [];

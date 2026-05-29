@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import CardFace from "@/components/CardFace.vue";
 import type { Card, Room } from "@/types";
 
 const props = defineProps<{
@@ -31,27 +32,27 @@ function isLegal(card: Card) {
 </script>
 
 <template>
-  <section class="panel">
+  <section class="stage-block">
     <div class="section-title">
       <h3>打牌阶段</h3>
       <span class="badge" :class="isMyTurn ? 'ok' : ''">{{ isMyTurn ? '轮到你出牌' : '等待其他玩家' }}</span>
     </div>
     <div class="trick-strip">
-      <div v-for="play in room.gameState.currentTrick?.cards ?? []" :key="`${play.playerId}-${play.card.suit}-${play.card.rank}`" class="trick-card">
+      <div v-for="play in room.gameState.currentTrick?.cards ?? []" :key="`${play.playerId}-${play.card.suit}-${play.card.rank}`" class="trick-card image-trick-card">
         <span>{{ play.position }}</span>
-        <strong>{{ play.card.suit }}{{ play.card.rank }}</strong>
+        <CardFace :card="play.card" size="sm" />
       </div>
     </div>
-    <div class="cards-grid">
+    <div class="cards-grid hand-grid">
       <button
         v-for="card in myHand"
         :key="`${card.suit}-${card.rank}`"
-        class="card-chip"
+        class="card-chip image-card-chip"
         :class="{ legal: isLegal(card) }"
         :disabled="!isMyTurn || !isLegal(card)"
         @click="emit('submit', card)"
       >
-        {{ card.suit }}{{ card.rank }}
+        <CardFace :card="card" size="md" :dimmed="!isLegal(card) || !isMyTurn" />
       </button>
     </div>
   </section>

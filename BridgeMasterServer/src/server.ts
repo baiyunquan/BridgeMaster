@@ -9,6 +9,7 @@ const PORT = Number(process.env.PORT) || 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.text({ type: "text/plain" }));
 app.use(express.static(path.resolve(__dirname, "../public")));
 
 function handleError(res: Response, error: unknown): void {
@@ -21,6 +22,14 @@ function requiredString(value: unknown, field: string): string {
     throw new Error(`${field} is required.`);
   }
   return value.trim();
+}
+
+function optionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized ? normalized : null;
 }
 
 function parsePosition(value: unknown): PlayerPosition {
@@ -119,7 +128,7 @@ app.get("/api/lobby/rooms/:inviteCode/stream", (req: Request, res: Response) => 
 
   try {
     const inviteCode = getInviteCode(req);
-    const room = lobbyManager.getRoomSnapshot(inviteCode);
+    const snapshot = lobbyManager.getRoomSnapshot(inviteCode);
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -127,9 +136,10 @@ app.get("/api/lobby/rooms/:inviteCode/stream", (req: Request, res: Response) => 
     res.flushHeaders();
 
     sendSse(res, "snapshot", {
-      inviteCode: room.id,
+      inviteCode: snapshot.room.id,
       at: Date.now(),
-      room,
+      room: snapshot.room,
+      events: snapshot.events,
     });
 
     unsubscribe = lobbyManager.subscribeRoom(inviteCode, (event: RoomEvent) => {
@@ -164,7 +174,7 @@ app.post("/api/lobby/rooms", (req: Request, res: Response) => {
   try {
     const roomName = requiredString(req.body?.roomName, "roomName");
     const creatorId = requiredString(req.body?.creatorId, "creatorId");
-    const creatorName = requiredString(req.body?.creatorName, "creatorName");
+    const creatorName = optionalString(req.body?.creatorName) ?? creatorId;
     const room = lobbyManager.createRoom(roomName, creatorId, creatorName);
     res.status(201).json(room);
   } catch (error) {
@@ -175,9 +185,42 @@ app.post("/api/lobby/rooms", (req: Request, res: Response) => {
 app.post("/api/lobby/rooms/:inviteCode/join", (req: Request, res: Response) => {
   try {
     const playerId = requiredString(req.body?.playerId, "playerId");
-    const playerName = requiredString(req.body?.playerName, "playerName");
+    const playerName = optionalString(req.body?.playerName) ?? playerId;
     const room = lobbyManager.joinRoomByCode(getInviteCode(req), playerId, playerName);
     res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/leave", (req: Request, res: Response) => {
+  try {
+    let body: unknown = req.body;
+
+    if (typeof body === "string") {
+      body = JSON.parse(body);
+    }
+
+    const payload = body as { playerId?: unknown };
+    const playerId = requiredString(payload?.playerId, "playerId");
+    const room = lobbyManager.leaveRoomByCode(getInviteCode(req), playerId);
+
+    if (!room) {
+      res.status(204).send();
+      return;
+    }
+
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/heartbeat", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    lobbyManager.touchPlayerHeartbeat(getInviteCode(req), playerId);
+    res.status(204).send();
   } catch (error) {
     handleError(res, error);
   }

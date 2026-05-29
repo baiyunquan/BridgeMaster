@@ -62,6 +62,10 @@ export class PlayPhase {
       card,
     });
 
+    if (!this.state.isDummyRevealed && this.state.tricks.length === 0 && this.state.currentTrick.cards.length === 1) {
+      this.state.isDummyRevealed = true;
+    }
+
     if (this.state.currentTrick.cards.length === 4) {
       const finishedTrick = this.resolveCurrentTrick();
       this.state.tricks.push(finishedTrick);

@@ -142,7 +142,22 @@ export class BiddingPhase {
     this.state.phase = "playing";
     this.state.currentTrick = null;
     this.state.tricks = [];
+    this.state.dummyPosition = this.getPartnerPosition(contract.declarer);
+    this.state.isDummyRevealed = false;
     this.state.turn = nextPosition(contract.declarer);
+  }
+
+  private getPartnerPosition(position: PlayerPosition): PlayerPosition {
+    if (position === "N") {
+      return "S";
+    }
+    if (position === "S") {
+      return "N";
+    }
+    if (position === "E") {
+      return "W";
+    }
+    return "E";
   }
 
   private getAuctionStatus(): AuctionStatus {
