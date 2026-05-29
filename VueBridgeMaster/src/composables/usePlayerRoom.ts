@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getRoom, joinRoom, leaveRoom, leaveRoomWithBeacon, sendHeartbeat, sitDown, submitBid, submitCard } from "@/api";
+import { dissolveRoom, getRoom, joinRoom, kickPlayer, leaveRoom, sendHeartbeat, sitDown, submitBid, submitCard } from "@/api";
 import { useRoomStream } from "@/composables/useRoomStream";
 import type { Bid, Card, PlayerPosition } from "@/types";
 
@@ -28,6 +28,7 @@ export function usePlayerRoom() {
   const { room, events, connected, error, reconnect } = useRoomStream(inviteCode);
 
   const me = computed(() => room.value?.players.find((player) => player.id === playerId.value) ?? null);
+  const isHost = computed(() => room.value?.creatorId === playerId.value);
   const myPosition = computed(() => me.value?.position ?? null);
   const availablePositions = computed<PlayerPosition[]>(() => {
     const occupied = new Set<PlayerPosition>((room.value?.players ?? []).flatMap((player) => (player.position ? [player.position] : [])));
@@ -98,14 +99,6 @@ export function usePlayerRoom() {
     heartbeatTimer = null;
   }
 
-  function releasePlayerId() {
-    if (leaveSent.value || !inviteCode.value || !playerId.value) {
-      return;
-    }
-
-    leaveSent.value = leaveRoomWithBeacon(inviteCode.value, playerId.value);
-  }
-
   async function handleSit(position: PlayerPosition) {
     try {
       actionError.value = "";
@@ -151,6 +144,28 @@ export function usePlayerRoom() {
     }
   }
 
+  async function handleKick(targetPlayerId: string) {
+    try {
+      actionError.value = "";
+      await kickPlayer(inviteCode.value, playerId.value, targetPlayerId);
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : "移除玩家失败";
+    }
+  }
+
+  async function handleDissolve() {
+    try {
+      actionError.value = "";
+      leaveSent.value = true;
+      stopHeartbeat();
+      await dissolveRoom(inviteCode.value, playerId.value);
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : "解散房间失败";
+    } finally {
+      await router.push("/");
+    }
+  }
+
   async function goToPhaseRoute(phase: string) {
     const targetName = phase === "playing" ? "player-play" : phase === "finished" ? "player-result" : "player-setup";
     if (route.name === targetName) {
@@ -171,7 +186,12 @@ export function usePlayerRoom() {
   watch(
     () => events.value.at(-1),
     (latestEvent) => {
-      if (latestEvent?.type === "game_reset") {
+      if (latestEvent?.type === "game_reset" || latestEvent?.type === "room_dissolved") {
+        void router.push("/");
+        return;
+      }
+
+      if (latestEvent?.type === "player_kicked" && latestEvent.meta?.targetPlayerId === playerId.value) {
         void router.push("/");
       }
     },
@@ -179,14 +199,10 @@ export function usePlayerRoom() {
 
   onMounted(() => {
     startHeartbeat();
-    window.addEventListener("pagehide", releasePlayerId);
-    window.addEventListener("beforeunload", releasePlayerId);
   });
 
   onUnmounted(() => {
     stopHeartbeat();
-    window.removeEventListener("pagehide", releasePlayerId);
-    window.removeEventListener("beforeunload", releasePlayerId);
   });
 
   void ensureJoined();
@@ -204,6 +220,7 @@ export function usePlayerRoom() {
     error,
     reconnect,
     me,
+    isHost,
     myPosition,
     availablePositions,
     roomPhase,
@@ -214,5 +231,7 @@ export function usePlayerRoom() {
     handleBid,
     handlePlay,
     handleLeave,
+    handleKick,
+    handleDissolve,
   };
 }

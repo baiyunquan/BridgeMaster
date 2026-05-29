@@ -100,6 +100,11 @@ export interface Room {
   gameState: BridgeGameState;
 }
 
+export interface RoomEventMeta {
+  actorPlayerId?: string;
+  targetPlayerId?: string;
+}
+
 export interface RoomSummary {
   id: string;
   name: string;
@@ -111,6 +116,8 @@ export interface RoomEvent {
     | "room_created"
     | "player_joined"
     | "player_left"
+    | "player_kicked"
+    | "room_dissolved"
     | "game_reset"
     | "player_sat"
     | "game_started"
@@ -121,6 +128,7 @@ export interface RoomEvent {
   sequence: number;
   at: number;
   room: Room;
+  meta?: RoomEventMeta;
 }
 
 export interface RoomStreamSnapshot {

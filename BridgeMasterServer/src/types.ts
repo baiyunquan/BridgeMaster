@@ -117,6 +117,11 @@ export interface Room {
   gameState: BridgeGameState;
 }
 
+export interface RoomEventMeta {
+  actorPlayerId?: string;
+  targetPlayerId?: string;
+}
+
 export interface RoomSummary {
   id: string;
   name: string;

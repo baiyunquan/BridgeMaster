@@ -51,6 +51,29 @@ def test_in_game_release_resets_room() -> None:
 	assert "game_reset" in event_types, event_types
 
 
+def test_host_kick_and_dissolve() -> None:
+	room = create_room("state-host", "host-p1", "Host 1")
+	invite_code = room["id"]
+	api_request("POST", f"/api/lobby/rooms/{invite_code}/join", {"playerId": "host-p2", "playerName": "Host 2"})
+	api_request("POST", f"/api/lobby/rooms/{invite_code}/join", {"playerId": "host-p3", "playerName": "Host 3"})
+
+	try:
+		api_request("POST", f"/api/lobby/rooms/{invite_code}/kick", {"hostId": "host-p2", "targetPlayerId": "host-p3"})
+		raise AssertionError("Non-host kick should fail")
+	except RuntimeError as exc:
+		assert "Only the host" in str(exc), exc
+
+	after_kick = api_request("POST", f"/api/lobby/rooms/{invite_code}/kick", {"hostId": "host-p1", "targetPlayerId": "host-p3"})
+	remaining_ids = sorted(player["id"] for player in after_kick["players"])
+	assert remaining_ids == ["host-p1", "host-p2"], remaining_ids
+	event_types = assert_event_history_contains(invite_code, ["player_kicked"])
+	assert "player_kicked" in event_types, event_types
+
+	result = api_request("POST", f"/api/lobby/rooms/{invite_code}/dissolve", {"hostId": "host-p1"})
+	assert result is None, result
+	expect_room_missing(invite_code)
+
+
 def test_heartbeat_timeout_release() -> None:
 	room = api_request(
 		"POST",
@@ -84,6 +107,7 @@ def test_heartbeat_timeout_release() -> None:
 def main() -> None:
 	test_waiting_room_release()
 	test_in_game_release_resets_room()
+	test_host_kick_and_dissolve()
 	test_heartbeat_timeout_release()
 	print("=== StateTest Passed ===")
 	print(f"Heartbeat wait seconds: {HEARTBEAT_WAIT_SECONDS}")

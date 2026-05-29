@@ -9,6 +9,8 @@ export function useRoomEventText() {
       room_created: "eventRoomCreated",
       player_joined: "eventPlayerJoined",
       player_left: "eventPlayerLeft",
+      player_kicked: "eventPlayerKicked",
+      room_dissolved: "eventRoomDissolved",
       game_reset: "eventGameReset",
       player_sat: "eventPlayerSat",
       game_started: "eventGameStarted",
@@ -32,7 +34,20 @@ export function useRoomEventText() {
   }
 
   function formatRoomEvent(event: RoomEvent): string {
-    return `${t("eventSequence")} ${event.sequence} · ${eventTypeLabel(event.type)} · ${t("eventPhase")} ${phaseLabel(event.room.gameState.phase)}`;
+    const extras: string[] = [];
+    if (event.meta?.actorPlayerId) {
+      extras.push(`${t("eventActor")} ${event.meta.actorPlayerId}`);
+    }
+    if (event.meta?.targetPlayerId) {
+      extras.push(`${t("eventTarget")} ${event.meta.targetPlayerId}`);
+    }
+
+    return [
+      `${t("eventSequence")} ${event.sequence}`,
+      eventTypeLabel(event.type),
+      `${t("eventPhase")} ${phaseLabel(event.room.gameState.phase)}`,
+      ...extras,
+    ].join(" · ");
   }
 
   return {

@@ -1,5 +1,5 @@
 import { BridgeGame } from "./BridgeGame";
-import { BridgeGameState, Player, PlayerPosition, Room, RoomSummary } from "./types";
+import { BridgeGameState, Player, PlayerPosition, Room, RoomEventMeta, RoomSummary } from "./types";
 
 const POSITIONS: PlayerPosition[] = ["N", "E", "S", "W"];
 const INVITE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -11,6 +11,8 @@ export type RoomEventType =
   | "room_created"
   | "player_joined"
   | "player_left"
+  | "player_kicked"
+  | "room_dissolved"
   | "game_reset"
   | "player_sat"
   | "game_started"
@@ -24,6 +26,7 @@ export interface RoomEvent {
   sequence: number;
   at: number;
   room: Room;
+  meta?: RoomEventMeta;
 }
 
 type RoomEventListener = (event: RoomEvent) => void;
@@ -204,7 +207,34 @@ export class LobbyManager {
       return this.cloneRoom(room);
     }
 
-    return this.releasePlayerFromRoom(room, playerId);
+    return this.releasePlayerFromRoom(room, playerId, "player_left", { actorPlayerId: playerId, targetPlayerId: playerId });
+  }
+
+  public kickPlayer(inviteCode: string, hostId: string, targetPlayerId: string): Room | null {
+    const room = this.getRoomOrThrow(inviteCode);
+    this.assertHost(room, hostId);
+
+    if (hostId === targetPlayerId) {
+      throw new Error("Host cannot remove self. Use dissolve or leave instead.");
+    }
+
+    if (!room.players.some((player) => player.id === targetPlayerId)) {
+      throw new Error("Target player is not in this room.");
+    }
+
+    return this.releasePlayerFromRoom(room, targetPlayerId, "player_kicked", {
+      actorPlayerId: hostId,
+      targetPlayerId,
+    });
+  }
+
+  public dissolveRoom(inviteCode: string, hostId: string): null {
+    const room = this.getRoomOrThrow(inviteCode);
+    this.assertHost(room, hostId);
+
+    this.emitRoomEvent(room, "room_dissolved", { actorPlayerId: hostId });
+    this.clearRoomState(room.id);
+    return null;
   }
 
   public touchPlayerHeartbeat(inviteCode: string, playerId: string): Room {
@@ -327,6 +357,12 @@ export class LobbyManager {
     return JSON.parse(JSON.stringify(events)) as RoomEvent[];
   }
 
+  private assertHost(room: Room, hostId: string): void {
+    if (room.creatorId !== hostId) {
+      throw new Error("Only the host can perform this action.");
+    }
+  }
+
   private touchPlayerPresence(inviteCode: string, playerId: string): void {
     let roomPresence = this.roomHeartbeats.get(inviteCode);
     if (!roomPresence) {
@@ -337,7 +373,7 @@ export class LobbyManager {
     roomPresence.set(playerId, Date.now());
   }
 
-  private releasePlayerFromRoom(room: Room, playerId: string): Room | null {
+  private releasePlayerFromRoom(room: Room, playerId: string, eventType: "player_left" | "player_kicked", meta?: RoomEventMeta): Room | null {
     room.players = room.players.filter((player) => player.id !== playerId);
     this.removePlayerPresence(room.id, playerId);
 
@@ -355,12 +391,12 @@ export class LobbyManager {
 
       room.gameState = emptyGameState();
       this.games.delete(room.id);
-      this.emitRoomEvent(room, "player_left");
+      this.emitRoomEvent(room, eventType, meta);
       this.emitRoomEvent(room, "game_reset");
       return this.cloneRoom(room);
     }
 
-    this.emitRoomEvent(room, "player_left");
+    this.emitRoomEvent(room, eventType, meta);
     return this.cloneRoom(room);
   }
 
@@ -404,12 +440,15 @@ export class LobbyManager {
           continue;
         }
 
-        this.releasePlayerFromRoom(activeRoom, playerId);
+        this.releasePlayerFromRoom(activeRoom, playerId, "player_left", {
+          actorPlayerId: playerId,
+          targetPlayerId: playerId,
+        });
       }
     }
   }
 
-  private emitRoomEvent(room: Room, type: RoomEventType): void {
+  private emitRoomEvent(room: Room, type: RoomEventType, meta?: RoomEventMeta): void {
     const sequence = (this.roomEventSequence.get(room.id) ?? 0) + 1;
     this.roomEventSequence.set(room.id, sequence);
 
@@ -419,6 +458,7 @@ export class LobbyManager {
       sequence,
       at: Date.now(),
       room: this.cloneRoom(room),
+      ...(meta ? { meta } : {}),
     };
 
     const history = this.roomEventHistory.get(room.id) ?? [];

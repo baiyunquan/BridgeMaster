@@ -216,6 +216,33 @@ app.post("/api/lobby/rooms/:inviteCode/leave", (req: Request, res: Response) => 
   }
 });
 
+app.post("/api/lobby/rooms/:inviteCode/kick", (req: Request, res: Response) => {
+  try {
+    const hostId = requiredString(req.body?.hostId, "hostId");
+    const targetPlayerId = requiredString(req.body?.targetPlayerId, "targetPlayerId");
+    const room = lobbyManager.kickPlayer(getInviteCode(req), hostId, targetPlayerId);
+
+    if (!room) {
+      res.status(204).send();
+      return;
+    }
+
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/dissolve", (req: Request, res: Response) => {
+  try {
+    const hostId = requiredString(req.body?.hostId, "hostId");
+    lobbyManager.dissolveRoom(getInviteCode(req), hostId);
+    res.status(204).send();
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post("/api/lobby/rooms/:inviteCode/heartbeat", (req: Request, res: Response) => {
   try {
     const playerId = requiredString(req.body?.playerId, "playerId");

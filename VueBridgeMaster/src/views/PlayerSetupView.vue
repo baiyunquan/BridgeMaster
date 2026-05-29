@@ -18,17 +18,36 @@ const {
   connected,
   error,
   reconnect,
+  isHost,
   myPosition,
   roomPhase,
   myHand,
   contractLabel,
   handleSit,
   handleBid,
+  handleKick,
   handleLeave,
+  handleDissolve,
 } = usePlayerRoom();
 
 const { t } = useLanguage();
 const { formatRoomEvent } = useRoomEventText();
+
+async function confirmKick(targetPlayerId: string) {
+  if (!window.confirm(t("removePlayerConfirm"))) {
+    return;
+  }
+
+  await handleKick(targetPlayerId);
+}
+
+async function confirmDissolve() {
+  if (!window.confirm(t("dissolveRoomConfirm"))) {
+    return;
+  }
+
+  await handleDissolve();
+}
 </script>
 
 <template>
@@ -41,6 +60,8 @@ const { formatRoomEvent } = useRoomEventText();
       </div>
       <div class="top-actions">
         <LanguageSelector />
+        <span v-if="isHost" class="badge ok">{{ t("host") }}</span>
+        <button v-if="isHost" class="danger" @click="confirmDissolve">{{ t("dissolveRoom") }}</button>
         <button @click="router.push('/')">{{ t("backToLobby") }}</button>
         <button class="danger" @click="handleLeave">{{ t("leaveRoom") }}</button>
         <button @click="reconnect">{{ t("reconnect") }}</button>
@@ -89,7 +110,9 @@ const { formatRoomEvent } = useRoomEventText();
           <div v-for="player in room.players" :key="player.id" class="history-item">
             <strong>{{ player.name }}</strong>
             <small>{{ player.id }}</small>
+            <span v-if="player.id === room.creatorId" class="badge ok">{{ t("host") }}</span>
             <span class="badge">{{ player.position ?? t("notSeated") }}</span>
+            <button v-if="isHost && player.id !== playerId" class="danger slim-button" @click="confirmKick(player.id)">{{ t("removePlayer") }}</button>
           </div>
         </div>
       </article>

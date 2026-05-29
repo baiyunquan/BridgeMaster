@@ -50,6 +50,20 @@ export function leaveRoom(inviteCode: string, playerId: string): Promise<Room | 
   });
 }
 
+export function kickPlayer(inviteCode: string, hostId: string, targetPlayerId: string): Promise<Room | null> {
+  return request<Room | null>(`/api/lobby/rooms/${inviteCode}/kick`, {
+    method: "POST",
+    body: JSON.stringify({ hostId, targetPlayerId }),
+  });
+}
+
+export function dissolveRoom(inviteCode: string, hostId: string): Promise<null> {
+  return request<null>(`/api/lobby/rooms/${inviteCode}/dissolve`, {
+    method: "POST",
+    body: JSON.stringify({ hostId }),
+  });
+}
+
 export function leaveRoomWithBeacon(inviteCode: string, playerId: string): boolean {
   if (!inviteCode || !playerId || typeof navigator === "undefined" || !navigator.sendBeacon) {
     return false;

@@ -423,6 +423,11 @@ label {
   align-items: center;
   gap: 12px;
   line-height: 1.45;
+  flex-wrap: wrap;
+}
+
+.slim-button {
+  padding: 0.5rem 0.8rem;
 }
 
 .card-chip.legal {
@@ -503,6 +508,106 @@ label {
   width: 100%;
 }
 
+.three-d-panel {
+  overflow: hidden;
+}
+
+.three-d-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compact-strip {
+  margin-top: 0;
+}
+
+.three-d-wrapper {
+  padding: 8px 0 18px;
+}
+
+.three-d-table {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  min-height: 560px;
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.12) 48%),
+    linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
+}
+
+.three-webgl-canvas,
+.three-webgl-canvas canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.three-d-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.table-seat,
+.trick-empty {
+  position: absolute;
+}
+
+.table-seat {
+  inset: 0;
+}
+
+.table-seat.active .table-seat-label {
+  box-shadow: 0 0 0 2px rgba(255, 159, 98, 0.45);
+}
+
+.table-seat-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 10px 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(239, 185, 154, 0.72);
+  box-shadow: 0 10px 22px rgba(25, 44, 87, 0.12);
+  transform: translate(-50%, -50%);
+  z-index: 4;
+}
+
+.hidden-count {
+  position: absolute;
+  padding: 6px 10px;
+  color: #eff8ff;
+  background: rgba(12, 38, 62, 0.72);
+  font-size: 0.8rem;
+  z-index: 4;
+}
+
+.trick-empty {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 18px;
+  color: #fff9eb;
+  background: rgba(17, 49, 42, 0.66);
+}
+
+.trick-play-label {
+  position: absolute;
+  padding: 4px 8px;
+  color: #f8fbff;
+  font-size: 0.78rem;
+  background: rgba(13, 26, 49, 0.58);
+  transform: translate(-50%, -50%);
+}
+
 @media (max-width: 960px) {
   .layout-grid,
   .player-grid {
@@ -518,5 +623,14 @@ label {
 
   .hero-panel {
     flex-direction: column;
+  }
+
+  .three-d-table {
+    aspect-ratio: 1 / 1.1;
+    min-height: 640px;
+  }
+
+  .table-seat-label {
+    min-width: 130px;
   }
 }
