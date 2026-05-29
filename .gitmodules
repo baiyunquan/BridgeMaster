@@ -1,0 +1,3 @@
+[submodule "VueBridgeMaster/public/cards/vector-cards"]
+	path = VueBridgeMaster/public/cards/vector-cards
+	url = https://github.com/notpeter/Vector-Playing-Cards.git
