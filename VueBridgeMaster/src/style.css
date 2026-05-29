@@ -538,6 +538,25 @@ label {
     linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
 }
 
+.three-d-table:fullscreen,
+.three-d-table.is-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.three-d-table:fullscreen .table-seat-label,
+.three-d-table.is-fullscreen .table-seat-label {
+  min-width: 170px;
+}
+
+.three-d-table:fullscreen .hidden-count,
+.three-d-table.is-fullscreen .hidden-count {
+  font-size: 0.92rem;
+}
+
 .three-webgl-canvas,
 .three-webgl-canvas canvas {
   position: absolute;

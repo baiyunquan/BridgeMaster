@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { Request, Response } from "express";
 import path from "path";
+import { gameRecordLogger } from "./GameRecordLogger";
 import { lobbyManager, RoomEvent } from "./LobbyManager";
 import { Bid, Card, PlayerPosition } from "./types";
 
@@ -269,6 +270,9 @@ app.post("/api/lobby/rooms/:inviteCode/bid", (req: Request, res: Response) => {
     const playerId = requiredString(req.body?.playerId, "playerId");
     const bid = parseBid(req.body?.bid);
     const room = lobbyManager.submitBid(getInviteCode(req), playerId, bid);
+    if (room.gameState.phase === "finished") {
+      gameRecordLogger.finishGame(room);
+    }
     res.json(room);
   } catch (error) {
     handleError(res, error);
@@ -280,10 +284,17 @@ app.post("/api/lobby/rooms/:inviteCode/play", (req: Request, res: Response) => {
     const playerId = requiredString(req.body?.playerId, "playerId");
     const card = parseCard(req.body?.card);
     const room = lobbyManager.submitCard(getInviteCode(req), playerId, card);
+    if (room.gameState.phase === "finished") {
+      gameRecordLogger.finishGame(room);
+    }
     res.json(room);
   } catch (error) {
     handleError(res, error);
   }
+});
+
+app.get("/api/game-records", (_req: Request, res: Response) => {
+  res.json({ path: gameRecordLogger.getLogPath() });
 });
 
 app.listen(PORT, () => {

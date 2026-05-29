@@ -24,6 +24,7 @@ src/
 	BridgeGame.ts          牌局总控
 	BridgeGameShared.ts    公共常量与工具函数
 	BiddingPhase.ts        叫牌逻辑
+	GameRecordLogger.ts    牌局结果本地记录
 	PlayPhase.ts           打牌逻辑与结算
 	LobbyManager.ts        房间、事件历史、玩家释放、心跳管理
 	server.ts              REST API 与 SSE
@@ -47,6 +48,7 @@ test/
 7. 玩家可主动离开；对局中有人离开时整局自动重置回等待态。
 8. 前端每 20 秒发送心跳，服务端超过 60 秒未收到心跳时会自动释放该玩家。
 9. 房间无人时自动清理房间、游戏实例、监听器和事件历史。
+10. 每一局会写入本地 `logs/game-records.jsonl`，记录正常结束或中途终止原因。
 
 ## 主要接口
 
@@ -173,6 +175,30 @@ GET /api/lobby/rooms/:inviteCode/stream
 8. `card_submitted`
 9. `game_finished`
 
+## 牌局记录
+
+服务端会在以下时机写入一条 JSON Lines 记录：
+
+1. 牌局正常结束，包括 `made`、`down` 或 `passed-out`
+2. 对局中有玩家离开、被移除、超时释放，导致整局重置
+
+默认记录文件：
+
+```text
+BridgeMasterServer/logs/game-records.jsonl
+```
+
+每条记录至少包含：
+
+1. `inviteCode`
+2. `roomName`
+3. `gameIndex`
+4. `status`：`completed` 或 `aborted`
+5. `startedAt` / `endedAt`
+6. `playersByPosition`
+7. 正常结束时的 `contractResult` / `winnerSide`
+8. 中途终止时的 `terminationReason`
+
 ## 自动化测试
 
 启动后端后，在 `test/` 目录执行：
@@ -181,6 +207,7 @@ GET /api/lobby/rooms/:inviteCode/stream
 python GameTest.py
 python JudgeTest.py
 python StateTest.py
+python RecordTest.py
 ```
 
 说明：
@@ -188,6 +215,7 @@ python StateTest.py
 1. `GameTest.py` 会打完整副牌，并检查 SSE 与分数字段。
 2. `JudgeTest.py` 会比较后端分数与独立判分器结果。
 3. `StateTest.py` 会验证离开重置、空房释放、事件历史和心跳超时释放。
+4. `RecordTest.py` 会验证本地牌局记录文件是否正确写入正常结束和中途终止的对局。
 
 运行 Python 全流程测试：
 

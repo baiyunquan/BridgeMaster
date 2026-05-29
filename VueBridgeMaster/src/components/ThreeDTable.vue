@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { TresCanvas } from "@tresjs/core";
 import { CanvasTexture, DoubleSide, LinearFilter, SRGBColorSpace, Texture, TextureLoader } from "three";
 import { useLanguage } from "@/composables/useLanguage";
@@ -49,26 +49,38 @@ interface TrickCardViewModel {
   renderOrder: number;
 }
 
+interface CompletedCardViewModel {
+  key: string;
+  card: Card;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  texture: Texture | null;
+  renderOrder: number;
+}
+
 const TABLE_SIZE = 8;
 const TABLE_RIM_SIZE = 8.6;
 const TABLE_RIM_HEIGHT = 0.32;
 const HAND_DISTANCE = 3.7;
+const HISTORY_DISTANCE = 2.45;
 const TRICK_DISTANCE = 1.15;
 const CARD_WIDTH = 0.9;
 const CARD_HEIGHT = 1.26;
 const CARD_OVERLAP_RATIO = 0.5;
 const CARD_LIFT = 0.05;
+const HISTORY_LIFT = 0.035;
 const TRICK_LIFT = 0.12;
 const CARD_LAYER_STEP = 0.0025;
 const BACK_COUNT = 6;
-const CAMERA_Y = 7.4;
-const CAMERA_Z = 7.6;
+const CAMERA_Y = 8.6;
+const CAMERA_Z = 10.4;
+const CAMERA_FOV = 48;
 const CAMERA_TILT = -Math.atan(CAMERA_Y / CAMERA_Z);
 const TABLE_PLANE_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
 
 const SLOT_LABELS: Record<SeatSlot, { left: number; top: number }> = {
-  bottom: { left: 50, top: 97 },
-  top: { left: 50, top: 3 },
+  bottom: { left: 50, top: 94 },
+  top: { left: 50, top: 8 },
   left: { left: 7, top: 50 },
   right: { left: 93, top: 50 },
 };
@@ -108,10 +120,16 @@ const positions: PlayerPosition[] = ["N", "E", "S", "W"];
 const textureLoader = new TextureLoader();
 const textureCache = reactive<Record<string, Texture | null>>({});
 const backTexture = createBackTexture();
+const tableRef = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
 
 const myPosition = computed(() => props.room.players.find((player) => player.id === props.playerId)?.position ?? null);
 const leadSuit = computed(() => props.room.gameState.currentTrick?.cards[0]?.card.suit ?? null);
 const isMyTurn = computed(() => props.room.gameState.turn === myPosition.value);
+
+function sideFor(position: PlayerPosition): "NS" | "EW" {
+  return position === "N" || position === "S" ? "NS" : "EW";
+}
 
 function createBackTexture(): Texture | null {
   if (typeof document === "undefined") {
@@ -225,6 +243,11 @@ function cardRotation(slot: SeatSlot): [number, number, number] {
   return [-Math.PI / 2, 0, HAND_ANCHORS[slot].angle];
 }
 
+function completedCardRotation(slot: SeatSlot, won: boolean): [number, number, number] {
+  const baseAngle = HAND_ANCHORS[slot].angle + (won ? Math.PI / 2 : 0);
+  return [-Math.PI / 2, 0, baseAngle];
+}
+
 function layoutCardPositions(
   cardCount: number,
   slot: SeatSlot,
@@ -246,12 +269,64 @@ function layoutCardPositions(
   });
 }
 
+function layoutCompletedCardPositions(
+  cardCount: number,
+  slot: SeatSlot,
+): Array<{ position: [number, number, number]; renderOrder: number }> {
+  const anchor = HAND_ANCHORS[slot];
+  const step = CARD_WIDTH * CARD_OVERLAP_RATIO;
+  const centerIndex = (cardCount - 1) / 2;
+
+  return Array.from({ length: cardCount }, (_, index) => {
+    const offset = (index - centerIndex) * step;
+    const x = anchor.axis === "horizontal" ? anchor.x + offset : anchor.x;
+    const z = anchor.axis === "horizontal" ? (anchor.z > 0 ? HISTORY_DISTANCE : -HISTORY_DISTANCE) : anchor.z + offset;
+    const adjustedX = anchor.axis === "vertical" ? (anchor.x > 0 ? HISTORY_DISTANCE : -HISTORY_DISTANCE) : x;
+
+    return {
+      position: [adjustedX, HISTORY_LIFT + index * CARD_LAYER_STEP, z],
+      renderOrder: 60 + index,
+    };
+  });
+}
+
+async function toggleFullscreen(): Promise<void> {
+  const target = tableRef.value;
+  if (!target || typeof document === "undefined") {
+    return;
+  }
+
+  if (document.fullscreenElement === target) {
+    await document.exitFullscreen();
+    return;
+  }
+
+  await target.requestFullscreen();
+}
+
+function syncFullscreenState(): void {
+  isFullscreen.value = typeof document !== "undefined" && document.fullscreenElement === tableRef.value;
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key !== "F11") {
+    return;
+  }
+
+  event.preventDefault();
+  void toggleFullscreen();
+}
+
 function handleCardClick(entry: SceneCardViewModel): void {
   if (!entry.clickable) {
     return;
   }
 
   emit("submit", entry.card);
+}
+
+function formatText(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, value), template);
 }
 
 const overlaySeats = computed(() => {
@@ -335,19 +410,84 @@ const currentTrickCards = computed(() => {
     renderOrder: 120 + index,
   } satisfies TrickCardViewModel));
 });
+
+const trickStatusText = computed(() => {
+  const turn = props.room.gameState.turn;
+  if (!turn) {
+    return t("noCurrentTrick");
+  }
+
+  if (currentTrickCards.value.length === 0) {
+    return formatText(t("turnToLead"), { position: turn });
+  }
+
+  return formatText(t("turnToPlayCard"), { position: turn });
+});
+
+const completedCards = computed(() => {
+  return overlaySeats.value.flatMap((seat) => {
+    const played = props.room.gameState.tricks
+      .flatMap((trick) => {
+        const play = trick.cards.find((entry) => entry.position === seat.position);
+        if (!play) {
+          return [];
+        }
+
+        return [{
+          card: play.card,
+          won: trick.winner ? sideFor(trick.winner) === sideFor(seat.position) : false,
+        }];
+      });
+
+    if (played.length === 0) {
+      return [];
+    }
+
+    const layout = layoutCompletedCardPositions(played.length, seat.slot);
+    return played.map((entry, index) => ({
+      key: `${seat.position}-completed-${index}-${entry.card.suit}-${entry.card.rank}`,
+      card: entry.card,
+      position: layout[index].position,
+      rotation: completedCardRotation(seat.slot, entry.won),
+      texture: ensureCardTexture(entry.card),
+      renderOrder: layout[index].renderOrder,
+    } satisfies CompletedCardViewModel));
+  });
+});
+
+onMounted(() => {
+  if (typeof window !== "undefined") {
+    window.addEventListener("keydown", handleKeydown);
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("keydown", handleKeydown);
+  }
+  if (typeof document !== "undefined") {
+    document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }
+});
 </script>
 
 <template>
   <section class="three-d-stage">
     <div class="section-title">
       <h3>{{ t("table3d") }}</h3>
-      <span class="badge" :class="isMyTurn ? 'ok' : ''">{{ isMyTurn ? t("playStage") : t("waitingOthers") }}</span>
+      <div class="inline-actions">
+        <button class="slim-button" @click="toggleFullscreen">{{ isFullscreen ? t("exitTableFullscreen") : t("tableFullscreen") }} F11</button>
+        <span class="badge" :class="isMyTurn ? 'ok' : ''">{{ isMyTurn ? t("playStage") : t("waitingOthers") }}</span>
+      </div>
     </div>
 
     <div class="three-d-wrapper">
-      <div class="three-d-table three-d-webgl-table">
+      <div ref="tableRef" class="three-d-table three-d-webgl-table" :class="{ 'is-fullscreen': isFullscreen }">
         <TresCanvas class="three-webgl-canvas" clear-color="#eef4ff" :clear-alpha="1" :alpha="false">
-          <TresPerspectiveCamera :position="[0, CAMERA_Y, CAMERA_Z]" :rotation="[CAMERA_TILT, 0, 0]" :fov="36" />
+          <TresPerspectiveCamera :position="[0, CAMERA_Y, CAMERA_Z]" :rotation="[CAMERA_TILT, 0, 0]" :fov="CAMERA_FOV" />
           <TresAmbientLight :intensity="2.2" />
           <TresDirectionalLight :position="[5, 9, 4]" :intensity="1.35" />
           <TresDirectionalLight :position="[-4, 6, -3]" :intensity="0.55" />
@@ -389,10 +529,10 @@ const currentTrickCards = computed(() => {
             <TresPlaneGeometry :args="[CARD_WIDTH, CARD_HEIGHT]" />
             <TresMeshBasicMaterial
               :map="entry.texture ?? undefined"
-              color="#ffffff"
+              :color="entry.dimmed ? '#6f7786' : '#ffffff'"
               :transparent="true"
               :depth-write="false"
-              :opacity="entry.dimmed ? 0.52 : 1"
+              :opacity="1"
               :side="DoubleSide"
             />
           </TresMesh>
@@ -401,6 +541,23 @@ const currentTrickCards = computed(() => {
             <TresPlaneGeometry :args="[CARD_WIDTH * 0.9, CARD_HEIGHT * 0.9]" />
             <TresMeshBasicMaterial
               :map="play.texture ?? undefined"
+              color="#ffffff"
+              :transparent="true"
+              :depth-write="false"
+              :side="DoubleSide"
+            />
+          </TresMesh>
+
+          <TresMesh
+            v-for="entry in completedCards"
+            :key="entry.key"
+            :position="entry.position"
+            :rotation="entry.rotation"
+            :render-order="entry.renderOrder"
+          >
+            <TresPlaneGeometry :args="[CARD_WIDTH * 0.88, CARD_HEIGHT * 0.88]" />
+            <TresMeshBasicMaterial
+              :map="entry.texture ?? undefined"
               color="#ffffff"
               :transparent="true"
               :depth-write="false"
@@ -429,7 +586,7 @@ const currentTrickCards = computed(() => {
             </span>
           </div>
 
-          <div v-if="currentTrickCards.length === 0" class="trick-empty">{{ t("noCurrentTrick") }}</div>
+          <div v-if="currentTrickCards.length === 0" class="trick-empty">{{ trickStatusText }}</div>
 
           <div
             v-for="play in currentTrickCards"

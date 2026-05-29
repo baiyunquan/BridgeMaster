@@ -1,4 +1,5 @@
 import { BridgeGame } from "./BridgeGame";
+import { gameRecordLogger } from "./GameRecordLogger";
 import { BridgeGameState, Player, PlayerPosition, Room, RoomEventMeta, RoomSummary } from "./types";
 
 const POSITIONS: PlayerPosition[] = ["N", "E", "S", "W"];
@@ -332,6 +333,7 @@ export class LobbyManager {
     const game = new BridgeGame(playersByPosition);
     room.gameState = game.start();
     this.games.set(room.id, game);
+    gameRecordLogger.beginGame(room);
     this.emitRoomEvent(room, "game_started");
   }
 
@@ -378,6 +380,9 @@ export class LobbyManager {
     this.removePlayerPresence(room.id, playerId);
 
     if (room.players.length === 0) {
+      if (room.gameState.phase !== "waiting") {
+        gameRecordLogger.abortGame(room, eventType, meta);
+      }
       this.clearRoomState(room.id);
       return null;
     }
@@ -385,6 +390,7 @@ export class LobbyManager {
     room.creatorId = room.players[0].id;
 
     if (room.gameState.phase !== "waiting") {
+      gameRecordLogger.abortGame(room, eventType, meta);
       for (const player of room.players) {
         player.position = null;
       }
@@ -413,6 +419,7 @@ export class LobbyManager {
   }
 
   private clearRoomState(inviteCode: string): void {
+    gameRecordLogger.clearRoom(inviteCode);
     this.rooms.delete(inviteCode);
     this.games.delete(inviteCode);
     this.roomListeners.delete(inviteCode);
