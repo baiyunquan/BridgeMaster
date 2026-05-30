@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, watch } from "vue";
 import CardFace from "@/components/CardFace.vue";
+import DdsInsightPanel from "@/components/DdsInsightPanel.vue";
 import LanguageSelector from "@/components/LanguageSelector.vue";
 import PlayControls from "@/components/PlayControls.vue";
 import PlayerSeatMap from "@/components/PlayerSeatMap.vue";
@@ -30,7 +31,7 @@ const {
 } = usePlayerRoom();
 const { t } = useLanguage();
 const { formatRoomEvent } = useRoomEventText();
-const tableMode = ref<"classic" | "3d">((localStorage.getItem(TABLE_MODE_STORAGE_KEY) as "classic" | "3d" | null) ?? "3d");
+const tableMode = ref<"classic" | "3d" | "dds">((localStorage.getItem(TABLE_MODE_STORAGE_KEY) as "classic" | "3d" | "dds" | null) ?? "3d");
 
 watch(tableMode, (value) => {
   localStorage.setItem(TABLE_MODE_STORAGE_KEY, value);
@@ -52,6 +53,16 @@ const revealedDummyHand = computed(() => {
     return [];
   }
   return room.value.gameState.hands[revealedDummyPosition.value];
+});
+
+const tableModeLabel = computed(() => {
+  if (tableMode.value === "3d") {
+    return t("table3d");
+  }
+  if (tableMode.value === "dds") {
+    return t("tableDds");
+  }
+  return t("tableClassic");
 });
 </script>
 
@@ -77,7 +88,7 @@ const revealedDummyHand = computed(() => {
       <span class="badge">Phase: {{ roomPhase }}</span>
       <span class="badge">{{ t("seatMine") }}: {{ myPosition ?? t("notSeated") }}</span>
       <span class="badge">{{ t("contractCurrent") }}: {{ contractLabel }}</span>
-      <span class="badge">{{ t("tableMode") }}: {{ tableMode === '3d' ? t('table3d') : t('tableClassic') }}</span>
+      <span class="badge">{{ t("tableMode") }}: {{ tableModeLabel }}</span>
     </section>
 
     <section class="layout-grid player-grid" v-if="room">
@@ -91,6 +102,7 @@ const revealedDummyHand = computed(() => {
               <span class="badge">{{ t("playStage") }}</span>
               <button class="slim-button accent" @click="tableMode = 'classic'">{{ t("tableClassic") }}</button>
               <button class="slim-button" @click="tableMode = '3d'">{{ t("table3d") }}</button>
+              <button class="slim-button" @click="tableMode = 'dds'">{{ t("tableDds") }}</button>
             </div>
           </div>
           <p v-if="error || actionError" class="error-text">{{ actionError || error }}</p>
@@ -113,17 +125,33 @@ const revealedDummyHand = computed(() => {
         </article>
       </template>
 
-      <article v-else class="panel wide-panel control-panel three-d-panel">
+      <article v-else-if="tableMode === '3d'" class="panel wide-panel control-panel three-d-panel">
         <div class="section-title">
           <h3>{{ t("yourConsole") }}</h3>
           <div class="inline-actions">
             <span class="badge">{{ t("playStage") }}</span>
             <button class="slim-button" @click="tableMode = 'classic'">{{ t("tableClassic") }}</button>
             <button class="slim-button accent" @click="tableMode = '3d'">{{ t("table3d") }}</button>
+            <button class="slim-button" @click="tableMode = 'dds'">{{ t("tableDds") }}</button>
           </div>
         </div>
         <p v-if="error || actionError" class="error-text">{{ actionError || error }}</p>
         <ThreeDTable :room="room" :player-id="playerId" @submit="handlePlay" />
+      </article>
+
+      <article v-else class="panel wide-panel control-panel three-d-panel">
+        <div class="section-title">
+          <h3>{{ t("yourConsole") }}</h3>
+          <div class="inline-actions">
+            <span class="badge">DDS</span>
+            <button class="slim-button" @click="tableMode = 'classic'">{{ t("tableClassic") }}</button>
+            <button class="slim-button" @click="tableMode = '3d'">{{ t("table3d") }}</button>
+            <button class="slim-button accent" @click="tableMode = 'dds'">{{ t("tableDds") }}</button>
+          </div>
+        </div>
+        <p v-if="error || actionError" class="error-text">{{ actionError || error }}</p>
+        <PlayControls :room="room" :player-id="playerId" @submit="handlePlay" />
+        <DdsInsightPanel :room="room" :player-position="myPosition" />
       </article>
 
       <article class="panel">

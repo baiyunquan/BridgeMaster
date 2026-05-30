@@ -1,6 +1,6 @@
-[submodule "VueBridgeMaster/public/cards/vector-cards"]
-	path = VueBridgeMaster/public/cards/vector-cards
+[submodule "public/cards/vector-cards"]
+	path = public/cards/vector-cards
 	url = https://github.com/notpeter/Vector-Playing-Cards.git
-[submodule "VueBridgeMaster/public/dds"]
-	path = VueBridgeMaster/public/dds
+[submodule "public/dds"]
+	path = public/dds
 	url = https://github.com/dds-bridge/dds.git

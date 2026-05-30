@@ -1,0 +1,15 @@
+{
+  "name": "bridgemaster",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n server,dds,vue -c blue,magenta,green --kill-others-on-fail \"npm --prefix BridgeMasterServer run dev\" \".\\.venv\\Scripts\\python.exe -m dds_service.api\" \"npm --prefix VueBridgeMaster run dev\"",
+    "build": "npm --prefix VueBridgeMaster run build",
+    "start:server": "npm --prefix BridgeMasterServer run dev",
+    "start:dds": ".\\.venv\\Scripts\\python.exe -m dds_service.api",
+    "start:vue": "npm --prefix VueBridgeMaster run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

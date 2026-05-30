@@ -1,4 +1,6 @@
-import type { Bid, Card, Room, RoomSummary } from "@/types";
+import type { Bid, Card, DdsAnalysisRequest, DdsAnalysisResult, Room, RoomSummary } from "@/types";
+
+const DDS_API_BASE = (import.meta.env.VITE_DDS_API_BASE as string | undefined) ?? (import.meta.env.DEV ? "/dds-api" : "http://localhost:8001");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -16,6 +18,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (response.status === 204) {
     return null as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+async function ddsRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${DDS_API_BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(payload.detail ?? payload.error ?? response.statusText);
   }
 
   return (await response.json()) as T;
@@ -98,5 +117,12 @@ export function submitCard(inviteCode: string, playerId: string, card: Card): Pr
   return request<Room>(`/api/lobby/rooms/${inviteCode}/play`, {
     method: "POST",
     body: JSON.stringify({ playerId, card }),
+  });
+}
+
+export function analyzeDdsPosition(payload: DdsAnalysisRequest): Promise<DdsAnalysisResult> {
+  return ddsRequest<DdsAnalysisResult>("/api/dds/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

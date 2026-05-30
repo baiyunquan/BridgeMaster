@@ -7,11 +7,12 @@ import { Bid, Card, PlayerPosition } from "./types";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
+const SHARED_PUBLIC_DIR = path.resolve(__dirname, "../../public");
 
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: "text/plain" }));
-app.use(express.static(path.resolve(__dirname, "../public")));
+app.use(express.static(SHARED_PUBLIC_DIR));
 
 function handleError(res: Response, error: unknown): void {
   const message = error instanceof Error ? error.message : "Unknown server error";

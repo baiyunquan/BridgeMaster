@@ -62,6 +62,7 @@ const dictionary: Dictionary = {
   tableMode: { zh: "牌桌模式", en: "Table Mode" },
   tableClassic: { zh: "经典牌桌", en: "Classic Table" },
   table3d: { zh: "立体牌桌", en: "3D Table" },
+  tableDds: { zh: "DDS 预测桌", en: "DDS Prediction" },
   tableFullscreen: { zh: "牌桌全屏", en: "Table Fullscreen" },
   exitTableFullscreen: { zh: "退出全屏", en: "Exit Fullscreen" },
   dummyHand: { zh: "明牌", en: "Dummy" },
@@ -89,6 +90,16 @@ const dictionary: Dictionary = {
   eventBidSubmitted: { zh: "叫牌已提交", en: "Bid Submitted" },
   eventCardSubmitted: { zh: "出牌已提交", en: "Card Submitted" },
   eventGameFinished: { zh: "牌局已结束", en: "Game Finished" },
+  ddsLoading: { zh: "DDS 正在分析当前局面", en: "DDS is analyzing the current position" },
+  ddsAnalysisFailed: { zh: "DDS 分析失败", en: "DDS analysis failed" },
+  ddsMoveSuggestions: { zh: "推荐出牌", en: "Suggested Plays" },
+  ddsHiddenPredictions: { zh: "对手手牌预测", en: "Opponent Card Prediction" },
+  ddsSeatPrediction: { zh: "预测席位", en: "Predicted Seat" },
+  ddsContractOutlook: { zh: "定约展望", en: "Contract Outlook" },
+  ddsExpectedTricks: { zh: "预期可得墩", en: "Expected Tricks" },
+  ddsSamples: { zh: "采样局数", en: "Samples" },
+  ddsCoverage: { zh: "覆盖", en: "Coverage" },
+  ddsNoPar: { zh: "暂无 par 结果", en: "No par result" },
 };
 
 export function setLanguage(language: Language) {

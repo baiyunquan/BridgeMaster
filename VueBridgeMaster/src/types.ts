@@ -137,3 +137,52 @@ export interface RoomStreamSnapshot {
   room: Room;
   events: RoomEvent[];
 }
+
+export interface DdsPositionedCard {
+  position: PlayerPosition;
+  card: Card;
+}
+
+export interface DdsContractPayload {
+  strain: Strain;
+  declarer: PlayerPosition;
+}
+
+export interface DdsAnalysisRequest {
+  knownHands: Partial<Record<PlayerPosition, Card[]>>;
+  handSizes: Record<PlayerPosition, number>;
+  playedCards: DdsPositionedCard[];
+  currentTrick: DdsPositionedCard[];
+  turn: PlayerPosition;
+  contract: DdsContractPayload;
+  vulnerable?: number;
+  maxSamples?: number;
+  randomSeed?: number;
+}
+
+export interface DdsCardProbability {
+  card: Card;
+  probability: number;
+}
+
+export interface DdsMoveSuggestion {
+  card: Card;
+  averageScore: number;
+  sampleCoverage: number;
+}
+
+export interface DdsContractOutlook {
+  expectedDeclarerTricks: number;
+  averageTable: number[][];
+  mostLikelyPar: {
+    parScore: string[];
+    parContractsString: string[];
+  } | null;
+}
+
+export interface DdsAnalysisResult {
+  sampleCount: number;
+  hiddenProbabilities: Partial<Record<PlayerPosition, DdsCardProbability[]>>;
+  moveSuggestions: DdsMoveSuggestion[];
+  contractOutlook: DdsContractOutlook | null;
+}

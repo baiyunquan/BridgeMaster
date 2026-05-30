@@ -103,7 +103,7 @@ onMounted(() => {
     </section>
 
     <section class="hero-panel compact">
-      <h1>四位玩家，四个独立网页，同步一局桥牌。</h1>
+      <h1>同步桥牌</h1>
       <p class="hero-copy">
         每个玩家使用独立 URL 进入自己的页面。大厅页负责建房、加入和分享入口，房间页负责坐下、叫牌、出牌与结算同步。
       </p>
