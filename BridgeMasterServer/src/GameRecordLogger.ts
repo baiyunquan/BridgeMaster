@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BridgeGameState, PlayerPosition, Room, RoomEventMeta } from "./types";
+import { AssistantGameState, BridgeGameState, PlayerPosition, Room, RoomEventMeta, RoomMode } from "./types";
 
 export type GameRecordStatus = "completed" | "aborted";
 
 export interface GameRecordEntry {
   inviteCode: string;
   roomName: string;
+  mode: RoomMode;
   gameIndex: number;
   status: GameRecordStatus;
   startedAt: number;
@@ -19,6 +20,14 @@ export interface GameRecordEntry {
   terminationReason?: string;
   actorPlayerId?: string;
   targetPlayerId?: string;
+  assistantResult?: {
+    operatorPosition: PlayerPosition;
+    declarer?: PlayerPosition;
+    strain?: string;
+    vulnerable: number;
+    playedCount: number;
+    completed: boolean;
+  };
 }
 
 interface ActiveGameRecord {
@@ -54,6 +63,32 @@ export class GameRecordLogger {
     });
   }
 
+  public finishAssistantGame(room: Room): void {
+    if (room.mode !== "assistant") {
+      return;
+    }
+
+    const state = room.assistantState;
+    if (!state) {
+      return;
+    }
+
+    const gameIndex = (this.roomGameIndex.get(room.id) ?? 0) + 1;
+    this.roomGameIndex.set(room.id, gameIndex);
+
+    this.writeRecord({
+      inviteCode: room.id,
+      roomName: room.name,
+      mode: room.mode,
+      gameIndex,
+      status: "completed",
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+      playersByPosition: this.emptyPlayersByPosition(),
+      assistantResult: this.extractAssistantResult(state),
+    });
+  }
+
   public finishGame(room: Room): void {
     const active = this.activeGames.get(room.id);
     if (!active) {
@@ -64,6 +99,7 @@ export class GameRecordLogger {
     this.writeRecord({
       inviteCode: active.inviteCode,
       roomName: active.roomName,
+      mode: "normal",
       gameIndex: active.gameIndex,
       status: "completed",
       startedAt: active.startedAt,
@@ -86,6 +122,7 @@ export class GameRecordLogger {
     this.writeRecord({
       inviteCode: active.inviteCode,
       roomName: active.roomName,
+      mode: "normal",
       gameIndex: active.gameIndex,
       status: "aborted",
       startedAt: active.startedAt,
@@ -110,6 +147,21 @@ export class GameRecordLogger {
   private writeRecord(record: GameRecordEntry): void {
     fs.mkdirSync(path.dirname(this.logPath), { recursive: true });
     fs.appendFileSync(this.logPath, `${JSON.stringify(record)}\n`, "utf8");
+  }
+
+  private extractAssistantResult(state: AssistantGameState): NonNullable<GameRecordEntry["assistantResult"]> {
+    return {
+      operatorPosition: state.operatorPosition,
+      declarer: state.contract?.declarer,
+      strain: state.contract?.strain,
+      vulnerable: state.vulnerable,
+      playedCount: state.playedCards.length + state.currentTrick.length,
+      completed: state.phase === "finished",
+    };
+  }
+
+  private emptyPlayersByPosition(): Record<PlayerPosition, string> {
+    return { N: "", E: "", S: "", W: "" };
   }
 }
 

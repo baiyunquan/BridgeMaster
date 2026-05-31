@@ -114,9 +114,27 @@ export interface AssistantPositionedCard {
   card: Card;
 }
 
+export type AssistantPhase = "setup" | "recording" | "finished";
+
+export type AssistantEntryTarget =
+  | "contract"
+  | "operator_hand"
+  | "dummy_hand"
+  | "opening_lead"
+  | "trick_play"
+  | "completed";
+
 export interface AssistantGameState {
   operatorPosition: PlayerPosition;
   contract: AssistantContract | null;
+  phase: AssistantPhase;
+  dummyPosition: PlayerPosition | null;
+  openingLeader: PlayerPosition | null;
+  entryTarget: AssistantEntryTarget;
+  entryPosition: PlayerPosition | null;
+  entryCount: number;
+  entryRequired: number;
+  pendingDdsForOperator: boolean;
   knownHands: Partial<Record<PlayerPosition, Card[]>>;
   handSizes: Record<PlayerPosition, number>;
   playedCards: AssistantPositionedCard[];

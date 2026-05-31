@@ -13,12 +13,64 @@ import type {
 
 const DDS_API_BASE = (import.meta.env.VITE_DDS_API_BASE as string | undefined) ?? (import.meta.env.DEV ? "/dds-api" : "http://localhost:8001");
 
+function readApiKeyFromCookie(): string {
+  if (typeof document === "undefined") {
+    return "";
+  }
+
+  for (const chunk of document.cookie.split(";")) {
+    const [name, ...rest] = chunk.trim().split("=");
+    if (name !== "api_key") {
+      continue;
+    }
+    return decodeURIComponent(rest.join("=")).trim();
+  }
+
+  return "";
+}
+
+function withAuthHeaders(headers?: HeadersInit): HeadersInit {
+  const apiKey = readApiKeyFromCookie();
+  const authHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    authHeaders["X-API-Key"] = apiKey;
+  }
+
+  if (!headers) {
+    return authHeaders;
+  }
+
+  if (headers instanceof Headers) {
+    const merged = new Headers(headers);
+    for (const [key, value] of Object.entries(authHeaders)) {
+      if (!merged.has(key)) {
+        merged.set(key, value);
+      }
+    }
+    return merged;
+  }
+
+  if (Array.isArray(headers)) {
+    const merged = [...headers];
+    for (const [key, value] of Object.entries(authHeaders)) {
+      if (!merged.some(([existing]) => existing.toLowerCase() === key.toLowerCase())) {
+        merged.push([key, value]);
+      }
+    }
+    return merged;
+  }
+
+  return {
+    ...authHeaders,
+    ...headers,
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: withAuthHeaders(init?.headers),
     ...init,
   });
 
@@ -36,10 +88,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function ddsRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${DDS_API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: withAuthHeaders(init?.headers),
     ...init,
   });
 
@@ -192,4 +241,16 @@ export function resetAssistantBoard(inviteCode: string, playerId: string): Promi
 
 export function getAssistantAnalysisPayload(inviteCode: string, playerId: string): Promise<DdsAnalysisRequest> {
   return request<DdsAnalysisRequest>(`/api/lobby/rooms/${inviteCode}/assistant/analysis?playerId=${encodeURIComponent(playerId)}`);
+}
+
+export function getAuthConfig(): Promise<{ enabled: boolean }> {
+  return request<{ enabled: boolean }>("/api/auth/config");
+}
+
+export function verifyApiKey(apiKey: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>("/api/auth/verify", {
+    method: "POST",
+    headers: withAuthHeaders({ "X-API-Key": apiKey }),
+    body: JSON.stringify({ apiKey }),
+  });
 }

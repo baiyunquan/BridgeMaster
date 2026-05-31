@@ -1,5 +1,6 @@
 import cors from "cors";
 import express, { Request, Response } from "express";
+import fs from "fs";
 import path from "path";
 import { gameRecordLogger } from "./GameRecordLogger";
 import { lobbyManager, RoomEvent } from "./LobbyManager";
@@ -8,15 +9,73 @@ import { AssistantContract, AssistantPositionedCard, Bid, Card, PlayerPosition, 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 const SHARED_PUBLIC_DIR = path.resolve(__dirname, "../../public");
+const API_KEY_FILE = path.resolve(__dirname, "../../api_key.json");
+const AUTH_ENABLED = process.argv.includes("--auth") || process.env.BRIDGEMASTER_AUTH === "1";
+const AUTH_EXEMPT_PATHS = new Set(["/auth/config", "/auth/verify"]);
+const EXPECTED_API_KEY = AUTH_ENABLED ? loadApiKey() : "";
 
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: "text/plain" }));
 app.use(express.static(SHARED_PUBLIC_DIR));
 
+app.use("/api", (req: Request, res: Response, next) => {
+  if (!AUTH_ENABLED || AUTH_EXEMPT_PATHS.has(req.path)) {
+    next();
+    return;
+  }
+
+  const requestApiKey = readRequestApiKey(req);
+  if (requestApiKey !== EXPECTED_API_KEY) {
+    res.status(401).json({ error: "Invalid api_key." });
+    return;
+  }
+
+  next();
+});
+
 function handleError(res: Response, error: unknown): void {
   const message = error instanceof Error ? error.message : "Unknown server error";
   res.status(400).json({ error: message });
+}
+
+function parseCookieValue(cookieHeader: string | undefined, key: string): string | null {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const chunk of cookieHeader.split(";")) {
+    const [name, ...rest] = chunk.trim().split("=");
+    if (name !== key) {
+      continue;
+    }
+    return decodeURIComponent(rest.join("="));
+  }
+
+  return null;
+}
+
+function readRequestApiKey(req: Request): string {
+  const headerValue = req.header("x-api-key");
+  if (typeof headerValue === "string" && headerValue.trim()) {
+    return headerValue.trim();
+  }
+
+  const cookieValue = parseCookieValue(req.header("cookie"), "api_key");
+  return cookieValue?.trim() ?? "";
+}
+
+function loadApiKey(): string {
+  if (!fs.existsSync(API_KEY_FILE)) {
+    throw new Error(`api_key file not found at ${API_KEY_FILE}`);
+  }
+
+  const raw = fs.readFileSync(API_KEY_FILE, "utf8");
+  const parsed = JSON.parse(raw) as { api_key?: unknown };
+  if (typeof parsed.api_key !== "string" || !parsed.api_key.trim()) {
+    throw new Error("api_key.json must contain non-empty string field api_key");
+  }
+  return parsed.api_key.trim();
 }
 
 function requiredString(value: unknown, field: string): string {
@@ -149,6 +208,27 @@ function sendSse(res: Response, event: string, data: unknown): void {
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
+
+app.get("/api/auth/config", (_req: Request, res: Response) => {
+  res.json({ enabled: AUTH_ENABLED });
+});
+
+app.post("/api/auth/verify", (req: Request, res: Response) => {
+  if (!AUTH_ENABLED) {
+    res.json({ ok: true });
+    return;
+  }
+
+  const bodyKey = typeof req.body?.apiKey === "string" ? req.body.apiKey.trim() : "";
+  const requestKey = readRequestApiKey(req);
+  const providedKey = bodyKey || requestKey;
+  if (providedKey !== EXPECTED_API_KEY) {
+    res.status(401).json({ error: "Invalid api_key." });
+    return;
+  }
+
+  res.json({ ok: true });
+});
 
 app.get("/api/lobby/rooms", (_req: Request, res: Response) => {
   res.json(lobbyManager.getLobbyRooms());
@@ -374,6 +454,9 @@ app.post("/api/lobby/rooms/:inviteCode/assistant/play", (req: Request, res: Resp
     const playerId = requiredString(req.body?.playerId, "playerId");
     const play = parseAssistantPlay(req.body?.play);
     const room = lobbyManager.submitAssistantCard(getInviteCode(req), playerId, play);
+    if (room.assistantState?.phase === "finished") {
+      gameRecordLogger.finishAssistantGame(room);
+    }
     res.json(room);
   } catch (error) {
     handleError(res, error);

@@ -69,6 +69,14 @@ function emptyAssistantState(operatorPosition: PlayerPosition = "S"): AssistantG
   return {
     operatorPosition,
     contract: null,
+    phase: "setup",
+    dummyPosition: null,
+    openingLeader: null,
+    entryTarget: "contract",
+    entryPosition: null,
+    entryCount: 0,
+    entryRequired: 0,
+    pendingDdsForOperator: false,
     knownHands: {},
     handSizes: { N: 13, E: 13, S: 13, W: 13 },
     playedCards: [],
@@ -332,11 +340,13 @@ export class LobbyManager {
 
   public setAssistantOperatorPosition(inviteCode: string, playerId: string, position: PlayerPosition): Room {
     const room = this.getAssistantRoomForOperator(inviteCode, playerId);
-    if (!room.assistantState) {
+    const state = room.assistantState;
+    if (!state) {
       throw new Error("Assistant state is missing.");
     }
 
-    room.assistantState.operatorPosition = position;
+    state.operatorPosition = position;
+    this.updateAssistantWorkflowState(state);
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_cards_updated", { actorPlayerId: playerId });
     return this.cloneRoom(room);
@@ -344,13 +354,17 @@ export class LobbyManager {
 
   public setAssistantContract(inviteCode: string, playerId: string, contract: AssistantContract, vulnerable: number): Room {
     const room = this.getAssistantRoomForOperator(inviteCode, playerId);
-    if (!room.assistantState) {
+    const state = room.assistantState;
+    if (!state) {
       throw new Error("Assistant state is missing.");
     }
 
-    room.assistantState.contract = { ...contract };
-    room.assistantState.turn = contract.declarer;
-    room.assistantState.vulnerable = Math.max(0, Math.min(3, Math.trunc(vulnerable)));
+    state.contract = { ...contract };
+    state.dummyPosition = this.partnerPosition(contract.declarer);
+    state.openingLeader = this.nextPosition(contract.declarer);
+    state.turn = state.openingLeader;
+    state.vulnerable = Math.max(0, Math.min(3, Math.trunc(vulnerable)));
+    this.updateAssistantWorkflowState(state);
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_contract_set", { actorPlayerId: playerId });
     return this.cloneRoom(room);
@@ -368,8 +382,15 @@ export class LobbyManager {
       throw new Error(`Known cards exceed hand size for ${position}.`);
     }
 
+    if (state.entryTarget === "operator_hand" || state.entryTarget === "dummy_hand") {
+      if (state.entryPosition !== position) {
+        throw new Error(`Current required entry is ${state.entryPosition ?? "unknown"}.`);
+      }
+    }
+
     state.knownHands[position] = sanitized;
     this.assertAssistantNoDuplicateCards(state);
+    this.updateAssistantWorkflowState(state);
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_cards_updated", { actorPlayerId: playerId });
     return this.cloneRoom(room);
@@ -380,6 +401,22 @@ export class LobbyManager {
     const state = room.assistantState;
     if (!state) {
       throw new Error("Assistant state is missing.");
+    }
+
+    if (state.phase === "finished") {
+      throw new Error("Assistant board already finished.");
+    }
+
+    if (state.entryTarget === "contract" || state.entryTarget === "operator_hand" || state.entryTarget === "dummy_hand") {
+      throw new Error("Please complete required hand/contract entry before play recording.");
+    }
+
+    if (state.entryPosition && play.position !== state.entryPosition) {
+      throw new Error(`Current required play position is ${state.entryPosition}.`);
+    }
+
+    if (play.position !== state.turn) {
+      throw new Error(`Current turn is ${state.turn}.`);
     }
 
     this.assertAssistantCardAvailable(state, play.card);
@@ -395,6 +432,8 @@ export class LobbyManager {
       state.playedCards.push(...state.currentTrick);
       state.currentTrick = [];
     }
+
+    this.updateAssistantWorkflowState(state);
 
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_play_updated", { actorPlayerId: playerId });
@@ -419,6 +458,8 @@ export class LobbyManager {
     } else {
       throw new Error("No assistant play to undo.");
     }
+
+    this.updateAssistantWorkflowState(state);
 
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_play_updated", { actorPlayerId: playerId });
@@ -445,17 +486,112 @@ export class LobbyManager {
       throw new Error("Assistant contract is required before analysis.");
     }
 
+    if (!state.pendingDdsForOperator) {
+      throw new Error("DDS is only available right before operator plays.");
+    }
+
+    if (state.phase === "finished") {
+      throw new Error("Board already finished.");
+    }
+
     this.assertAssistantNoDuplicateCards(state);
 
+    const usedByPosition: Record<PlayerPosition, Set<string>> = { N: new Set(), E: new Set(), S: new Set(), W: new Set() };
+    for (const item of [...state.playedCards, ...state.currentTrick]) {
+      usedByPosition[item.position].add(`${item.card.suit}-${item.card.rank}`);
+    }
+
+    const remainingKnown: Partial<Record<PlayerPosition, Card[]>> = {};
+    const remainingHandSizes: Record<PlayerPosition, number> = { N: 13, E: 13, S: 13, W: 13 };
+    for (const position of POSITIONS) {
+      const usedCount = usedByPosition[position].size;
+      remainingHandSizes[position] = Math.max(0, state.handSizes[position] - usedCount);
+      const cards = (state.knownHands[position] ?? []).filter(
+        (card) => !usedByPosition[position].has(`${card.suit}-${card.rank}`),
+      );
+      if (cards.length > 0) {
+        remainingKnown[position] = cards;
+      }
+    }
+
     return {
-      knownHands: state.knownHands,
-      handSizes: state.handSizes,
+      knownHands: remainingKnown,
+      handSizes: remainingHandSizes,
       playedCards: state.playedCards,
       currentTrick: state.currentTrick,
       turn: state.turn,
       contract: state.contract,
       vulnerable: state.vulnerable,
     };
+  }
+
+  private updateAssistantWorkflowState(state: AssistantGameState): void {
+    const totalPlayed = state.playedCards.length + state.currentTrick.length;
+
+    if (!state.contract) {
+      state.phase = "setup";
+      state.entryTarget = "contract";
+      state.entryPosition = null;
+      state.entryCount = 0;
+      state.entryRequired = 0;
+      state.pendingDdsForOperator = false;
+      return;
+    }
+
+    const dummy = state.dummyPosition ?? this.partnerPosition(state.contract.declarer);
+    state.dummyPosition = dummy;
+    state.openingLeader = state.openingLeader ?? this.nextPosition(state.contract.declarer);
+
+    const operatorKnown = (state.knownHands[state.operatorPosition] ?? []).length;
+    if (operatorKnown < state.handSizes[state.operatorPosition]) {
+      state.phase = "recording";
+      state.entryTarget = "operator_hand";
+      state.entryPosition = state.operatorPosition;
+      state.entryCount = operatorKnown;
+      state.entryRequired = state.handSizes[state.operatorPosition];
+      state.turn = state.openingLeader;
+      state.pendingDdsForOperator = false;
+      return;
+    }
+
+    const dummyKnown = (state.knownHands[dummy] ?? []).length;
+    if (dummyKnown < state.handSizes[dummy]) {
+      state.phase = "recording";
+      state.entryTarget = "dummy_hand";
+      state.entryPosition = dummy;
+      state.entryCount = dummyKnown;
+      state.entryRequired = state.handSizes[dummy];
+      state.turn = state.openingLeader;
+      state.pendingDdsForOperator = false;
+      return;
+    }
+
+    if (totalPlayed >= 52) {
+      state.phase = "finished";
+      state.entryTarget = "completed";
+      state.entryPosition = null;
+      state.entryCount = 52;
+      state.entryRequired = 52;
+      state.pendingDdsForOperator = false;
+      return;
+    }
+
+    state.phase = "recording";
+    if (totalPlayed === 0) {
+      state.entryTarget = "opening_lead";
+      state.entryPosition = state.openingLeader;
+      state.entryCount = 0;
+      state.entryRequired = 1;
+      state.turn = state.openingLeader;
+      state.pendingDdsForOperator = false;
+      return;
+    }
+
+    state.entryTarget = "trick_play";
+    state.entryPosition = state.turn;
+    state.entryCount = totalPlayed;
+    state.entryRequired = 52;
+    state.pendingDdsForOperator = true;
   }
 
   private getRoomOrThrow(inviteCode: string): Room {
@@ -544,15 +680,20 @@ export class LobbyManager {
       }
     }
 
-    for (const position of POSITIONS) {
-      for (const known of state.knownHands[position] ?? []) {
-        if (`${known.suit}-${known.rank}` === key) {
-          return;
-        }
-      }
-    }
+    return;
+  }
 
-    throw new Error(`Card ${key} is not in known hands; please input known cards first.`);
+  private partnerPosition(position: PlayerPosition): PlayerPosition {
+    if (position === "N") {
+      return "S";
+    }
+    if (position === "S") {
+      return "N";
+    }
+    if (position === "E") {
+      return "W";
+    }
+    return "E";
   }
 
   private nextPosition(position: PlayerPosition): PlayerPosition {

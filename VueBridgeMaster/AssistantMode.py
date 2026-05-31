@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import string
 import sys
@@ -10,6 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 SUITS = ["C", "D", "H", "S"]
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
@@ -64,8 +66,52 @@ def next_position(position: str) -> str:
     return POSITIONS[(index + 1) % len(POSITIONS)]
 
 
+def partner_position(position: str) -> str:
+    if position == "N":
+        return "S"
+    if position == "S":
+        return "N"
+    if position == "E":
+        return "W"
+    return "E"
+
+
 def card_key(card: dict[str, str]) -> str:
     return f"{card['suit']}-{card['rank']}"
+
+
+def payload_cardinality(payload: dict[str, Any]) -> tuple[int, int]:
+    known_hands = payload.get("knownHands") if isinstance(payload.get("knownHands"), dict) else {}
+    hand_sizes = payload.get("handSizes") if isinstance(payload.get("handSizes"), dict) else {}
+    played_cards = payload.get("playedCards") if isinstance(payload.get("playedCards"), list) else []
+    current_trick = payload.get("currentTrick") if isinstance(payload.get("currentTrick"), list) else []
+
+    known_keys: set[str] = set()
+    for position in POSITIONS:
+        cards = known_hands.get(position)
+        if isinstance(cards, list):
+            for card in cards:
+                if isinstance(card, dict):
+                    known_keys.add(card_key(card))
+    for item in played_cards:
+        card = item.get("card") if isinstance(item, dict) else None
+        if isinstance(card, dict):
+            known_keys.add(card_key(card))
+    for item in current_trick:
+        card = item.get("card") if isinstance(item, dict) else None
+        if isinstance(card, dict):
+            known_keys.add(card_key(card))
+
+    unknown_count = 52 - len(known_keys)
+    requirement_sum = 0
+    for position in POSITIONS:
+        size = hand_sizes.get(position)
+        cards = known_hands.get(position)
+        size_int = size if isinstance(size, int) else 0
+        known_len = len(cards) if isinstance(cards, list) else 0
+        requirement_sum += size_int - known_len
+
+    return unknown_count, requirement_sum
 
 
 def run_one_board(
@@ -98,14 +144,15 @@ def run_one_board(
     analyze_calls = 0
 
     try:
-        declarer = rng.choice(POSITIONS)
-        contract = {"strain": rng.choice(STRAINS), "declarer": declarer}
-
+        operator = rng.choice(POSITIONS)
         http_json(
             "POST",
             f"{server_base}/api/lobby/rooms/{invite_code}/assistant/operator",
-            {"playerId": player_id, "position": rng.choice(POSITIONS)},
+            {"playerId": player_id, "position": operator},
         )
+
+        declarer = rng.choice(POSITIONS)
+        contract = {"strain": rng.choice(STRAINS), "declarer": declarer}
 
         http_json(
             "POST",
@@ -118,55 +165,98 @@ def run_one_board(
         )
 
         hands = build_deal(rng)
-        for position in POSITIONS:
-            http_json(
-                "POST",
-                f"{server_base}/api/lobby/rooms/{invite_code}/assistant/hands/{position}",
-                {"playerId": player_id, "cards": hands[position]},
-            )
+        dummy = partner_position(declarer)
+        opening_leader = next_position(declarer)
+
+        # Step 2: only record operator hand, then dummy hand, then opening lead.
+        http_json(
+            "POST",
+            f"{server_base}/api/lobby/rooms/{invite_code}/assistant/hands/{operator}",
+            {"playerId": player_id, "cards": hands[operator]},
+        )
+        http_json(
+            "POST",
+            f"{server_base}/api/lobby/rooms/{invite_code}/assistant/hands/{dummy}",
+            {"playerId": player_id, "cards": hands[dummy]},
+        )
 
         available = {position: list(cards) for position, cards in hands.items()}
-        turn = declarer
+        opening_card = rng.choice(available[opening_leader])
+        available[opening_leader].remove(opening_card)
 
-        for trick_index in range(13):
-            for _ in range(4):
-                position_cards = available[turn]
-                if not position_cards:
-                    return False, analyze_calls, f"No cards left for {turn} at trick {trick_index + 1}"
+        http_json(
+            "POST",
+            f"{server_base}/api/lobby/rooms/{invite_code}/assistant/play",
+            {
+                "playerId": player_id,
+                "play": {
+                    "position": opening_leader,
+                    "card": opening_card,
+                },
+            },
+        )
 
-                card = rng.choice(position_cards)
-                position_cards.remove(card)
+        played = 1
+        turn = next_position(opening_leader)
 
-                http_json(
-                    "POST",
-                    f"{server_base}/api/lobby/rooms/{invite_code}/assistant/play",
-                    {
-                        "playerId": player_id,
-                        "play": {
-                            "position": turn,
-                            "card": card,
-                        },
-                    },
+        while played < 52:
+            if turn == operator:
+                payload = http_json(
+                    "GET",
+                    f"{server_base}/api/lobby/rooms/{invite_code}/assistant/analysis?{urllib.parse.urlencode({'playerId': player_id})}",
                 )
+                if not isinstance(payload, dict):
+                    return False, analyze_calls, "Assistant analysis payload endpoint returned invalid data"
 
-                turn = next_position(turn)
+                payload["maxSamples"] = max_samples
+                payload["randomSeed"] = board_index * 1000 + played
 
-                # Frequent real-time analysis during play progression.
-                if rng.random() < 0.7:
-                    payload = http_json(
-                        "GET",
-                        f"{server_base}/api/lobby/rooms/{invite_code}/assistant/analysis?{urllib.parse.urlencode({'playerId': player_id})}",
-                    )
-                    if not isinstance(payload, dict):
-                        return False, analyze_calls, "Assistant analysis payload endpoint returned invalid data"
-
-                    payload["maxSamples"] = max_samples
-                    payload["randomSeed"] = board_index * 1000 + trick_index
-
+                try:
                     analysis = http_json("POST", f"{dds_base}/api/dds/analyze", payload)
-                    analyze_calls += 1
-                    if not isinstance(analysis, dict) or not analysis.get("moveSuggestions"):
-                        return False, analyze_calls, "DDS analysis returned empty move suggestions"
+                except RuntimeError as exc:
+                    unknown_count, requirement_sum = payload_cardinality(payload)
+                    os.makedirs("logs", exist_ok=True)
+                    dump_path = os.path.join("logs", f"assistant-dds-failure-board-{board_index:03d}-played-{played}.json")
+                    with open(dump_path, "w", encoding="utf-8") as f:
+                        json.dump(payload, f, ensure_ascii=True, indent=2)
+                    return (
+                        False,
+                        analyze_calls,
+                        f"DDS analyze failed: board={board_index} played={played} turn={turn} unknown={unknown_count} req={requirement_sum} dump={dump_path}. {exc}",
+                    )
+
+                analyze_calls += 1
+                if not isinstance(analysis, dict) or not analysis.get("moveSuggestions"):
+                    return False, analyze_calls, "DDS analysis returned empty move suggestions"
+
+            position_cards = available[turn]
+            if not position_cards:
+                return False, analyze_calls, f"No cards left for {turn} at played={played}"
+
+            card = rng.choice(position_cards)
+            position_cards.remove(card)
+
+            http_json(
+                "POST",
+                f"{server_base}/api/lobby/rooms/{invite_code}/assistant/play",
+                {
+                    "playerId": player_id,
+                    "play": {
+                        "position": turn,
+                        "card": card,
+                    },
+                },
+            )
+
+            played += 1
+            turn = next_position(turn)
+
+        room_state = http_json("GET", f"{server_base}/api/lobby/rooms/{invite_code}")
+        if not isinstance(room_state, dict):
+            return False, analyze_calls, "Invalid room state response"
+        assistant_state = room_state.get("assistantState") if isinstance(room_state.get("assistantState"), dict) else None
+        if not assistant_state or assistant_state.get("phase") != "finished":
+            return False, analyze_calls, "Assistant board did not auto-finish after 52 plays"
 
         return True, analyze_calls, ""
     finally:

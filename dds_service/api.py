@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import json
+import os
 import random
+import sys
 import time
 from collections import defaultdict
 from collections.abc import Iterable
+from pathlib import Path
 from statistics import mean
 
 from fastapi import FastAPI
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -18,6 +24,32 @@ from .native import SUIT_TO_DDS
 from .native import calc_dd_table_pbn
 from .native import calc_par
 from .native import solve_board_pbn
+
+
+AUTH_ENABLED = "--auth" in sys.argv or os.environ.get("BRIDGEMASTER_AUTH") == "1"
+API_KEY_FILE = Path(__file__).resolve().parent.parent / "api_key.json"
+AUTH_EXEMPT_PATHS = {"/api/auth/config", "/api/auth/verify", "/health"}
+
+
+def _load_api_key() -> str:
+    if not API_KEY_FILE.exists():
+        raise RuntimeError(f"api_key file not found at {API_KEY_FILE}")
+
+    parsed = json.loads(API_KEY_FILE.read_text(encoding="utf-8"))
+    api_key = parsed.get("api_key") if isinstance(parsed, dict) else None
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise RuntimeError("api_key.json must contain non-empty string field api_key")
+    return api_key.strip()
+
+
+EXPECTED_API_KEY = _load_api_key() if AUTH_ENABLED else ""
+
+
+def _read_request_api_key(request: Request) -> str:
+    header_key = request.headers.get("x-api-key", "").strip()
+    if header_key:
+        return header_key
+    return (request.cookies.get("api_key") or "").strip()
 
 
 class ApiCard(BaseModel):
@@ -64,6 +96,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def api_key_guard(request: Request, call_next):
+    if not AUTH_ENABLED or request.url.path in AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+
+    provided = _read_request_api_key(request)
+    if provided != EXPECTED_API_KEY:
+        return JSONResponse(status_code=401, content={"detail": "Invalid api_key."})
+
+    return await call_next(request)
 
 
 FULL_DECK = [ApiCard(suit=suit, rank=rank) for suit in SUIT_ORDER for rank in ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")]
@@ -202,13 +246,15 @@ def analyze_position(request: DdsAnalysisRequest) -> dict:
     pars: list[dict] = []
     strain_index = SUIT_TO_DDS[request.contract.strain]
     declarer_index = POSITION_ORDER.index(request.contract.declarer)
+    turn_index = POSITION_ORDER.index(request.turn)
+    first_index = (turn_index - len(request.currentTrick)) % len(POSITION_ORDER)
 
     for sample in samples:
         pbn = _build_pbn(sample)
         analysis = solve_board_pbn(
             pbn,
             trump=SUIT_TO_DDS[request.contract.strain],
-            first=POSITION_ORDER.index(request.turn),
+            first=first_index,
             current_trick_suit=trick_suits,
             current_trick_rank=trick_ranks,
             solutions=3,
@@ -310,6 +356,23 @@ def benchmark_analyze_position(payload: DdsBenchmarkRequest) -> dict:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/auth/config")
+def auth_config() -> dict[str, bool]:
+    return {"enabled": AUTH_ENABLED}
+
+
+@app.post("/api/auth/verify")
+def auth_verify(request: Request) -> dict[str, bool]:
+    if not AUTH_ENABLED:
+        return {"ok": True}
+
+    provided = _read_request_api_key(request)
+    if provided != EXPECTED_API_KEY:
+        return JSONResponse(status_code=401, content={"detail": "Invalid api_key."})
+
+    return {"ok": True}
 
 
 @app.post("/api/dds/analyze")

@@ -3,6 +3,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
   getAssistantAnalysisPayload,
   getRoom,
+  dissolveRoom,
   joinRoom,
   resetAssistantBoard,
   sendHeartbeat,
@@ -33,6 +34,7 @@ export function useAssistantRoom() {
   const inviteCode = ref(String(route.query.room ?? "").toUpperCase());
   const actionError = ref("");
   const leaveSent = ref(false);
+  const closingRoom = ref(false);
   let heartbeatTimer: number | null = null;
 
   const { room, events, connected, error, reconnect } = useRoomStream(inviteCode);
@@ -159,6 +161,24 @@ export function useAssistantRoom() {
     }
   }
 
+  async function closeAssistantRoom() {
+    if (!inviteCode.value || !playerId.value || closingRoom.value) {
+      return;
+    }
+
+    try {
+      actionError.value = "";
+      closingRoom.value = true;
+      await dissolveRoom(inviteCode.value, playerId.value);
+      leaveSent.value = true;
+      stopHeartbeat();
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : "关闭房间失败";
+    } finally {
+      closingRoom.value = false;
+    }
+  }
+
   onMounted(() => {
     startHeartbeat();
   });
@@ -188,5 +208,6 @@ export function useAssistantRoom() {
     undoPlay,
     resetBoard,
     fetchDdsPayload,
+    closeAssistantRoom,
   };
 }
