@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 
 from .build_native import ensure_dds_dll
-from .build_native import _find_gpp
+from .build_native import _find_cpp_compiler
 
 
 DDS_STRAINS = 5
@@ -78,7 +78,9 @@ class ParResults(ctypes.Structure):
 def _load_library() -> ctypes.WinDLL:
     dll_path = ensure_dds_dll()
     os.add_dll_directory(str(Path(dll_path).parent))
-    os.add_dll_directory(str(_find_gpp().parent))
+    compiler_path, compiler_kind = _find_cpp_compiler()
+    if compiler_kind == "g++":
+        os.add_dll_directory(str(compiler_path.parent))
     library = ctypes.WinDLL(str(dll_path))
 
     library.SolveBoardPBN.argtypes = [DealPBN, c_int, c_int, c_int, POINTER(FutureTricks), c_int]

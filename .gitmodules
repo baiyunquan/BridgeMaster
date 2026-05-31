@@ -3,4 +3,4 @@
 	url = https://github.com/notpeter/Vector-Playing-Cards.git
 [submodule "public/dds"]
 	path = public/dds
-	url = https://github.com/dds-bridge/dds.git
+	url = https://github.com/baiyunquan/dds.git

@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "dev": "cross-env ROLLUP_USE_WASM=true vite",
+    "build": "cross-env ROLLUP_USE_WASM=true vue-tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@types/node": "^24.3.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "typescript": "^5.9.2",
