@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 
 from .build_native import ensure_dds_dll
-from .build_native import _find_cpp_compiler
+from .build_native import get_dds_runtime_search_dirs
 
 
 DDS_STRAINS = 5
@@ -37,6 +37,7 @@ RANK_TO_VALUE = {
     "A": 14,
 }
 VALUE_TO_RANK = {value: rank for rank, value in RANK_TO_VALUE.items()}
+_DLL_DIR_HANDLES: list[object] = []
 
 
 class FutureTricks(ctypes.Structure):
@@ -77,10 +78,11 @@ class ParResults(ctypes.Structure):
 
 def _load_library() -> ctypes.WinDLL:
     dll_path = ensure_dds_dll()
-    os.add_dll_directory(str(Path(dll_path).parent))
-    compiler_path, compiler_kind = _find_cpp_compiler()
-    if compiler_kind == "g++":
-        os.add_dll_directory(str(compiler_path.parent))
+    _DLL_DIR_HANDLES.append(os.add_dll_directory(str(Path(dll_path).parent)))
+    for runtime_dir in get_dds_runtime_search_dirs():
+        runtime_dir_str = str(runtime_dir)
+        if runtime_dir_str.lower() != str(Path(dll_path).parent).lower():
+            _DLL_DIR_HANDLES.append(os.add_dll_directory(runtime_dir_str))
     library = ctypes.WinDLL(str(dll_path))
 
     library.SolveBoardPBN.argtypes = [DealPBN, c_int, c_int, c_int, POINTER(FutureTricks), c_int]

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import random
+import time
 from collections import defaultdict
 from collections.abc import Iterable
+from statistics import mean
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +48,12 @@ class DdsAnalysisRequest(BaseModel):
     vulnerable: int = 0
     maxSamples: int = 48
     randomSeed: int | None = None
+
+
+class DdsBenchmarkRequest(BaseModel):
+    request: DdsAnalysisRequest
+    iterations: int = 50
+    warmupIterations: int = 5
 
 
 app = FastAPI(title="BridgeMaster DDS API", version="1.0.0")
@@ -267,6 +275,38 @@ def analyze_position(request: DdsAnalysisRequest) -> dict:
     }
 
 
+def benchmark_analyze_position(payload: DdsBenchmarkRequest) -> dict:
+    iterations = max(1, min(payload.iterations, 5000))
+    warmup_iterations = max(0, min(payload.warmupIterations, 1000))
+
+    for _ in range(warmup_iterations):
+        analyze_position(payload.request)
+
+    elapsed_ms: list[float] = []
+    started = time.perf_counter()
+    for _ in range(iterations):
+        lap_start = time.perf_counter()
+        analyze_position(payload.request)
+        elapsed_ms.append((time.perf_counter() - lap_start) * 1000.0)
+    total_seconds = max(time.perf_counter() - started, 1e-9)
+
+    sorted_elapsed = sorted(elapsed_ms)
+    p95_index = min(len(sorted_elapsed) - 1, int(len(sorted_elapsed) * 0.95))
+
+    return {
+        "iterations": iterations,
+        "warmupIterations": warmup_iterations,
+        "totalSeconds": round(total_seconds, 4),
+        "requestsPerSecond": round(iterations / total_seconds, 3),
+        "latencyMs": {
+            "min": round(sorted_elapsed[0], 3),
+            "avg": round(mean(elapsed_ms), 3),
+            "p95": round(sorted_elapsed[p95_index], 3),
+            "max": round(sorted_elapsed[-1], 3),
+        },
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -275,6 +315,11 @@ def health() -> dict[str, str]:
 @app.post("/api/dds/analyze")
 def analyze_endpoint(request: DdsAnalysisRequest) -> dict:
     return analyze_position(request)
+
+
+@app.post("/api/dds/benchmark")
+def benchmark_endpoint(payload: DdsBenchmarkRequest) -> dict:
+    return benchmark_analyze_position(payload)
 
 
 if __name__ == "__main__":

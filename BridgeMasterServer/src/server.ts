@@ -3,7 +3,7 @@ import express, { Request, Response } from "express";
 import path from "path";
 import { gameRecordLogger } from "./GameRecordLogger";
 import { lobbyManager, RoomEvent } from "./LobbyManager";
-import { Bid, Card, PlayerPosition } from "./types";
+import { AssistantContract, AssistantPositionedCard, Bid, Card, PlayerPosition, RoomMode } from "./types";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -39,6 +39,13 @@ function parsePosition(value: unknown): PlayerPosition {
     return value;
   }
   throw new Error("position must be one of N/E/S/W");
+}
+
+function parseRoomMode(value: unknown): RoomMode {
+  if (value === "assistant") {
+    return "assistant";
+  }
+  return "normal";
 }
 
 function parseBid(value: unknown): Bid {
@@ -96,6 +103,38 @@ function parseCard(value: unknown): Card {
   }
 
   return card;
+}
+
+function parseCards(value: unknown): Card[] {
+  if (!Array.isArray(value)) {
+    throw new Error("cards payload must be an array.");
+  }
+  return value.map((item) => parseCard(item));
+}
+
+function parseAssistantContract(value: unknown): AssistantContract {
+  if (!value || typeof value !== "object") {
+    throw new Error("contract payload is required");
+  }
+  const contract = value as AssistantContract;
+  const position = parsePosition(contract.declarer);
+  const strain = contract.strain;
+  if (!(strain === "C" || strain === "D" || strain === "H" || strain === "S" || strain === "NT")) {
+    throw new Error("contract strain must be one of C/D/H/S/NT");
+  }
+  return { strain, declarer: position };
+}
+
+function parseAssistantPlay(value: unknown): AssistantPositionedCard {
+  if (!value || typeof value !== "object") {
+    throw new Error("assistant play payload is required");
+  }
+
+  const raw = value as { position?: unknown; card?: unknown };
+  return {
+    position: parsePosition(raw.position),
+    card: parseCard(raw.card),
+  };
 }
 
 function getInviteCode(req: Request): string {
@@ -177,7 +216,8 @@ app.post("/api/lobby/rooms", (req: Request, res: Response) => {
     const roomName = requiredString(req.body?.roomName, "roomName");
     const creatorId = requiredString(req.body?.creatorId, "creatorId");
     const creatorName = optionalString(req.body?.creatorName) ?? creatorId;
-    const room = lobbyManager.createRoom(roomName, creatorId, creatorName);
+    const mode = parseRoomMode(req.body?.mode);
+    const room = lobbyManager.createRoom(roomName, creatorId, creatorName, mode);
     res.status(201).json(room);
   } catch (error) {
     handleError(res, error);
@@ -289,6 +329,82 @@ app.post("/api/lobby/rooms/:inviteCode/play", (req: Request, res: Response) => {
       gameRecordLogger.finishGame(room);
     }
     res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/operator", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const position = parsePosition(req.body?.position);
+    const room = lobbyManager.setAssistantOperatorPosition(getInviteCode(req), playerId, position);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/contract", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const contract = parseAssistantContract(req.body?.contract);
+    const vulnerable = Number(req.body?.vulnerable ?? 0);
+    const room = lobbyManager.setAssistantContract(getInviteCode(req), playerId, contract, vulnerable);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/hands/:position", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const position = parsePosition(req.params.position);
+    const cards = parseCards(req.body?.cards);
+    const room = lobbyManager.upsertAssistantKnownHand(getInviteCode(req), playerId, position, cards);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/play", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const play = parseAssistantPlay(req.body?.play);
+    const room = lobbyManager.submitAssistantCard(getInviteCode(req), playerId, play);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/undo", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const room = lobbyManager.undoAssistantCard(getInviteCode(req), playerId);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/lobby/rooms/:inviteCode/assistant/reset", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const room = lobbyManager.resetAssistantBoard(getInviteCode(req), playerId);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get("/api/lobby/rooms/:inviteCode/assistant/analysis", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.query.playerId, "playerId");
+    const payload = lobbyManager.getAssistantAnalysisInput(getInviteCode(req), playerId);
+    res.json(payload);
   } catch (error) {
     handleError(res, error);
   }

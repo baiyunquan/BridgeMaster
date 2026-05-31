@@ -4,6 +4,7 @@ export type Rank = "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | 
 export type PlayerPosition = "N" | "E" | "S" | "W";
 export type BidActionType = "pass" | "bid" | "double" | "redouble";
 export type GamePhase = "waiting" | "bidding" | "playing" | "finished";
+export type RoomMode = "normal" | "assistant";
 
 export interface Card {
   suit: Suit;
@@ -86,6 +87,27 @@ export interface BridgeGameState {
   score: BridgeScore | null;
 }
 
+export interface AssistantContract {
+  strain: Strain;
+  declarer: PlayerPosition;
+}
+
+export interface AssistantPositionedCard {
+  position: PlayerPosition;
+  card: Card;
+}
+
+export interface AssistantGameState {
+  operatorPosition: PlayerPosition;
+  contract: AssistantContract | null;
+  knownHands: Partial<Record<PlayerPosition, Card[]>>;
+  handSizes: Record<PlayerPosition, number>;
+  playedCards: AssistantPositionedCard[];
+  currentTrick: AssistantPositionedCard[];
+  turn: PlayerPosition;
+  vulnerable: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -95,9 +117,11 @@ export interface Player {
 export interface Room {
   id: string;
   name: string;
+  mode: RoomMode;
   creatorId: string;
   players: Player[];
   gameState: BridgeGameState;
+  assistantState: AssistantGameState | null;
 }
 
 export interface RoomEventMeta {
@@ -108,6 +132,7 @@ export interface RoomEventMeta {
 export interface RoomSummary {
   id: string;
   name: string;
+  mode: RoomMode;
   playerCount: number;
 }
 
@@ -123,7 +148,11 @@ export interface RoomEvent {
     | "game_started"
     | "bid_submitted"
     | "card_submitted"
-    | "game_finished";
+    | "game_finished"
+    | "assistant_contract_set"
+    | "assistant_cards_updated"
+    | "assistant_play_updated"
+    | "assistant_reset";
   inviteCode: string;
   sequence: number;
   at: number;

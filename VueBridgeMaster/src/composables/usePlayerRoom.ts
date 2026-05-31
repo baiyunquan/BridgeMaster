@@ -62,6 +62,14 @@ export function usePlayerRoom() {
       leaveSent.value = false;
       await joinRoom(inviteCode.value, playerId.value, displayName.value || undefined);
       room.value = await getRoom(inviteCode.value);
+      if (room.value.mode === "assistant") {
+        await router.replace({
+          name: "assistant",
+          params: { playerId: playerId.value },
+          query: { room: inviteCode.value },
+        });
+        return;
+      }
       await sendHeartbeat(inviteCode.value, playerId.value);
     } catch (err) {
       actionError.value = err instanceof Error ? err.message : "加入房间失败";

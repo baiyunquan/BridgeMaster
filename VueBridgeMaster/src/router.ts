@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import LobbyView from "@/views/LobbyView.vue";
+import AssistantView from "@/views/AssistantView.vue";
 import PlayerPlayView from "@/views/PlayerPlayView.vue";
 import PlayerResultView from "@/views/PlayerResultView.vue";
 import PlayerSetupView from "@/views/PlayerSetupView.vue";
@@ -11,6 +12,12 @@ const router = createRouter({
       path: "/",
       name: "lobby",
       component: LobbyView,
+    },
+    {
+      path: "/assistant/:playerId",
+      name: "assistant",
+      component: AssistantView,
+      props: true,
     },
     {
       path: "/player/setup/:playerId",
@@ -29,6 +36,10 @@ const router = createRouter({
       name: "player-result",
       component: PlayerResultView,
       props: true,
+    },
+    {
+      path: "/player/:playerId/assistant",
+      redirect: (to) => ({ name: "assistant", params: { playerId: to.params.playerId }, query: to.query }),
     },
     {
       path: "/player/:playerId/setup",

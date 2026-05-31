@@ -17,6 +17,7 @@ export type Rank =
   | "A";
 
 export type PlayerPosition = "N" | "E" | "S" | "W";
+export type RoomMode = "normal" | "assistant";
 
 export interface Card {
   suit: Suit;
@@ -103,6 +104,27 @@ export interface BridgeGameState {
   score: BridgeScore | null;
 }
 
+export interface AssistantContract {
+  strain: Strain;
+  declarer: PlayerPosition;
+}
+
+export interface AssistantPositionedCard {
+  position: PlayerPosition;
+  card: Card;
+}
+
+export interface AssistantGameState {
+  operatorPosition: PlayerPosition;
+  contract: AssistantContract | null;
+  knownHands: Partial<Record<PlayerPosition, Card[]>>;
+  handSizes: Record<PlayerPosition, number>;
+  playedCards: AssistantPositionedCard[];
+  currentTrick: AssistantPositionedCard[];
+  turn: PlayerPosition;
+  vulnerable: number;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -112,9 +134,11 @@ export interface Player {
 export interface Room {
   id: string;
   name: string;
+  mode: RoomMode;
   creatorId: string;
   players: Player[];
   gameState: BridgeGameState;
+  assistantState: AssistantGameState | null;
 }
 
 export interface RoomEventMeta {
@@ -125,5 +149,6 @@ export interface RoomEventMeta {
 export interface RoomSummary {
   id: string;
   name: string;
+  mode: RoomMode;
   playerCount: number;
 }

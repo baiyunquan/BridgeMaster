@@ -1,4 +1,15 @@
-import type { Bid, Card, DdsAnalysisRequest, DdsAnalysisResult, Room, RoomSummary } from "@/types";
+import type {
+  AssistantContract,
+  AssistantPositionedCard,
+  Bid,
+  Card,
+  DdsAnalysisRequest,
+  DdsAnalysisResult,
+  PlayerPosition,
+  Room,
+  RoomMode,
+  RoomSummary,
+} from "@/types";
 
 const DDS_API_BASE = (import.meta.env.VITE_DDS_API_BASE as string | undefined) ?? (import.meta.env.DEV ? "/dds-api" : "http://localhost:8001");
 
@@ -48,10 +59,10 @@ export function getRoom(inviteCode: string): Promise<Room> {
   return request<Room>(`/api/lobby/rooms/${inviteCode}`);
 }
 
-export function createRoom(roomName: string, creatorId: string, creatorName?: string): Promise<Room> {
+export function createRoom(roomName: string, creatorId: string, creatorName?: string, mode: RoomMode = "normal"): Promise<Room> {
   return request<Room>("/api/lobby/rooms", {
     method: "POST",
-    body: JSON.stringify({ roomName, creatorId, creatorName }),
+    body: JSON.stringify({ roomName, creatorId, creatorName, mode }),
   });
 }
 
@@ -125,4 +136,60 @@ export function analyzeDdsPosition(payload: DdsAnalysisRequest): Promise<DdsAnal
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function setAssistantOperator(inviteCode: string, playerId: string, position: PlayerPosition): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/operator`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, position }),
+  });
+}
+
+export function setAssistantContract(
+  inviteCode: string,
+  playerId: string,
+  contract: AssistantContract,
+  vulnerable = 0,
+): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/contract`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, contract, vulnerable }),
+  });
+}
+
+export function upsertAssistantHand(
+  inviteCode: string,
+  playerId: string,
+  position: PlayerPosition,
+  cards: Card[],
+): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/hands/${position}`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, cards }),
+  });
+}
+
+export function submitAssistantPlay(inviteCode: string, playerId: string, play: AssistantPositionedCard): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/play`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, play }),
+  });
+}
+
+export function undoAssistantPlay(inviteCode: string, playerId: string): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/undo`, {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
+  });
+}
+
+export function resetAssistantBoard(inviteCode: string, playerId: string): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/assistant/reset`, {
+    method: "POST",
+    body: JSON.stringify({ playerId }),
+  });
+}
+
+export function getAssistantAnalysisPayload(inviteCode: string, playerId: string): Promise<DdsAnalysisRequest> {
+  return request<DdsAnalysisRequest>(`/api/lobby/rooms/${inviteCode}/assistant/analysis?playerId=${encodeURIComponent(playerId)}`);
 }

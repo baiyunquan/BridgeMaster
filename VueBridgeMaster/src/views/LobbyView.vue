@@ -4,12 +4,13 @@ import LanguageSelector from "@/components/LanguageSelector.vue";
 import { useLanguage } from "@/composables/useLanguage";
 import { useRouter } from "vue-router";
 import { createRoom, getLobbyRooms, joinRoom } from "@/api";
-import type { RoomSummary } from "@/types";
+import type { RoomMode, RoomSummary } from "@/types";
 
 const router = useRouter();
 const rooms = ref<RoomSummary[]>([]);
 const error = ref("");
 const roomName = ref("晨雾桥牌桌");
+const roomMode = ref<RoomMode>("normal");
 const playerId = ref(`player-${Math.random().toString(36).slice(2, 8)}`);
 const playerName = ref("");
 const inviteCode = ref("");
@@ -60,10 +61,10 @@ async function loadRooms() {
 async function handleCreate() {
   try {
     error.value = "";
-    const room = await createRoom(roomName.value, playerId.value, playerName.value);
+    const room = await createRoom(roomName.value, playerId.value, playerName.value, roomMode.value);
     inviteCode.value = room.id;
     await router.push({
-      name: "player-setup",
+      name: room.mode === "assistant" ? "assistant" : "player-setup",
       params: { playerId: playerId.value },
       query: { room: room.id },
     });
@@ -76,9 +77,9 @@ async function handleJoin(targetCode?: string) {
   try {
     const code = (targetCode ?? inviteCode.value).trim().toUpperCase();
     error.value = "";
-    await joinRoom(code, playerId.value, playerName.value);
+    const room = await joinRoom(code, playerId.value, playerName.value);
     await router.push({
-      name: "player-setup",
+      name: room.mode === "assistant" ? "assistant" : "player-setup",
       params: { playerId: playerId.value },
       query: { room: code },
     });
@@ -131,6 +132,13 @@ onMounted(() => {
             {{ t("roomName") }}
             <input v-model="roomName" />
           </label>
+          <label>
+            模式
+            <select v-model="roomMode">
+              <option value="normal">普通对局（4人）</option>
+              <option value="assistant">辅助模式（单人录入+DDS）</option>
+            </select>
+          </label>
           <button class="accent" type="submit">{{ t("createAndEnter") }}</button>
         </form>
         <form class="control-stack" @submit.prevent="handleJoin()">
@@ -152,7 +160,7 @@ onMounted(() => {
           <button v-for="room in rooms" :key="room.id" class="room-card" @click="handleJoin(room.id)">
             <strong>{{ room.name }}</strong>
             <span>{{ room.id }}</span>
-            <small>{{ room.playerCount }}/4 人</small>
+            <small>{{ room.mode === 'assistant' ? '辅助模式' : `${room.playerCount}/4 人` }}</small>
           </button>
         </div>
       </article>

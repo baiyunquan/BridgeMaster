@@ -17,6 +17,10 @@ export function useRoomEventText() {
       bid_submitted: "eventBidSubmitted",
       card_submitted: "eventCardSubmitted",
       game_finished: "eventGameFinished",
+      assistant_contract_set: "eventAssistantContractSet",
+      assistant_cards_updated: "eventAssistantCardsUpdated",
+      assistant_play_updated: "eventAssistantPlayUpdated",
+      assistant_reset: "eventAssistantReset",
     };
 
     return t(keyMap[type]);
