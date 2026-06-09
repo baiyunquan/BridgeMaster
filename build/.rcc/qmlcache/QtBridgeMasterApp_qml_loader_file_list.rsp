@@ -1,0 +1,11 @@
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/qmake_BridgeMaster.qrc
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0.qrc
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0_extra_qmldirs.qrc
+/qt/qml/BridgeMaster/qml/Main.qml
+/qt/qml/BridgeMaster/qml/components/TopBar.qml
+/qt/qml/BridgeMaster/qml/pages/LobbyPage.qml
+/qt/qml/BridgeMaster/qml/pages/PlayerPage.qml
+/qt/qml/BridgeMaster/qml/pages/AssistantPage.qml

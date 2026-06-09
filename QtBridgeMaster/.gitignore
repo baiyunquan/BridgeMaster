@@ -1,0 +1,6 @@
+build/
+.vs/
+*.user
+*.qmlc
+*.jsc
+CMakeUserPresets.json

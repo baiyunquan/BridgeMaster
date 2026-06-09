@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="Win32-MSBuild"
+	BuildStamp="20260531-2001-Experimental"
+	Name="surface"
+	Generator="ctest-4.1.2"
+	CompilerName="C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx86/x64/cl.exe"
+	CompilerVersion="19.44.35225.0"
+	OSName="Windows"
+	Hostname="surface"
+	OSRelease=" Professional"
+	OSVersion=" (Build 26200)"
+	OSPlatform="AMD64"
+	Is64Bits="1"
+	VendorString=""
+	VendorID="Unknown Manufacturer"
+	FamilyID="0"
+	ModelID="0"
+	ModelName=""
+	ProcessorCacheSize="0"
+	NumberOfLogicalCPU="12"
+	NumberOfPhysicalCPU="10"
+	TotalVirtualMemory="20816"
+	TotalPhysicalMemory="16208"
+	LogicalProcessorsPerPhysical="1"
+	ProcessorClockFrequency="2600"
+	>
+	<Testing>
+		<StartDateTime>Jun 01 04:01</StartDateTime>
+		<StartTestTime>1780257695</StartTestTime>
+		<TestList/>
+		<EndDateTime>Jun 01 04:01</EndDateTime>
+		<EndTestTime>1780257695</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

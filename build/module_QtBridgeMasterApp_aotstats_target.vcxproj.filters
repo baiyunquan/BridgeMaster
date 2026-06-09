@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\0c207218d5bba653584d75f8214cc9ae\Main_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\cf708c99519e1afd11c05807d89b80e6\TopBar_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\AssistantPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\LobbyPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\PlayerPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\28377e1321e24e69bd3f6449b94110f4\module_QtBridgeMasterApp.aotstats.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\c5cfdd20000100c71463ea3da8930083\module_QtBridgeMasterApp_aotstats_target.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\QtBridgeMaster\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\workspace\BridgeMaster\build\CMakeFiles\module_QtBridgeMasterApp_aotstats_target" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{664324BC-4F16-332C-82FB-3272FD7A68B1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

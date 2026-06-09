@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/qt/qml/BridgeMaster">
+    <file alias="qmldir">C:/workspace/BridgeMaster/build/BridgeMaster/qmldir</file>
+  </qresource>
+</RCC>
+

@@ -1,0 +1,10 @@
+<RCC>
+  <qresource prefix="/qt/qml/BridgeMaster/">
+    <file alias="qml/Main.qml">C:/workspace/BridgeMaster/QtBridgeMaster/qml/Main.qml</file>
+    <file alias="qml/components/TopBar.qml">C:/workspace/BridgeMaster/QtBridgeMaster/qml/components/TopBar.qml</file>
+    <file alias="qml/pages/LobbyPage.qml">C:/workspace/BridgeMaster/QtBridgeMaster/qml/pages/LobbyPage.qml</file>
+    <file alias="qml/pages/PlayerPage.qml">C:/workspace/BridgeMaster/QtBridgeMaster/qml/pages/PlayerPage.qml</file>
+    <file alias="qml/pages/AssistantPage.qml">C:/workspace/BridgeMaster/QtBridgeMaster/qml/pages/AssistantPage.qml</file>
+  </qresource>
+</RCC>
+

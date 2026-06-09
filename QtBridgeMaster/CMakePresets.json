@@ -1,0 +1,44 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "msvc2022-x64-debug",
+      "displayName": "MSVC2022 x64 Debug",
+      "description": "Primary preset for local development",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/msvc2022-x64-debug",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/soft/Qt/6.10.0/msvc2022_64"
+      }
+    },
+    {
+      "name": "mingw64-debug",
+      "displayName": "MinGW64 Debug",
+      "description": "Fallback preset for MSYS2 toolchain",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mingw64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "C:/workspace/soft/msys2/mingw64",
+        "CMAKE_C_COMPILER": "C:/workspace/soft/msys2/mingw64/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "C:/workspace/soft/msys2/mingw64/bin/g++.exe"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-msvc2022-x64-debug",
+      "configurePreset": "msvc2022-x64-debug"
+    },
+    {
+      "name": "build-mingw64-debug",
+      "configurePreset": "mingw64-debug"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/workspace/BridgeMaster/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

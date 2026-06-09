@@ -1,0 +1,150 @@
+{
+	"backtrace" : 3,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_custom_target",
+			"_qt_internal_deferred_aotstats_setup",
+			"add_dependencies"
+		],
+		"files" : 
+		[
+			"C:/workspace/soft/msys2/mingw64/lib/cmake/Qt6Qml/Qt6QmlMacros.cmake",
+			"C:/workspace/soft/msys2/mingw64/lib/cmake/Qt6Qml/Qt6QmlMacros.cmake:1178:EVAL",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 2
+			},
+			{
+				"file" : 2,
+				"line" : -1,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 1,
+				"parent" : 1
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 1232,
+				"parent" : 2
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 1237,
+				"parent" : 2
+			}
+		]
+	},
+	"dependencies" : 
+	[
+		{
+			"backtrace" : 4,
+			"id" : "QtBridgeMasterApp_qmltyperegistration::@6890427a1f51a3e7e1df"
+		},
+		{
+			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
+		}
+	],
+	"folder" : 
+	{
+		"name" : "QtInternalTargets"
+	},
+	"id" : "module_QtBridgeMasterApp_aotstats_target::@6890427a1f51a3e7e1df",
+	"name" : "module_QtBridgeMasterApp_aotstats_target",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "",
+			"sourceIndexes" : 
+			[
+				0
+			]
+		},
+		{
+			"name" : "CMake Rules",
+			"sourceIndexes" : 
+			[
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 3,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/module_QtBridgeMasterApp_aotstats_target",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/c5cfdd20000100c71463ea3da8930083/module_QtBridgeMasterApp_aotstats_target.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/28377e1321e24e69bd3f6449b94110f4/module_QtBridgeMasterApp.aotstats.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/0c207218d5bba653584d75f8214cc9ae/Main_qml.cpp.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/cf708c99519e1afd11c05807d89b80e6/TopBar_qml.cpp.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/2be7b8de2f2e577a5c4776ed757de8c3/AssistantPage_qml.cpp.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/2be7b8de2f2e577a5c4776ed757de8c3/LobbyPage_qml.cpp.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/2be7b8de2f2e577a5c4776ed757de8c3/PlayerPage_qml.cpp.rule",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 0,
+			"isGenerated" : true,
+			"path" : "C:/workspace/BridgeMaster/build/CMakeFiles/d04cb1ba18d14ff64f81585d19a0000c/qtbridgemasterapp_qmltyperegistrations.cpp.rule",
+			"sourceGroupIndex" : 1
+		}
+	],
+	"type" : "UTILITY"
+}

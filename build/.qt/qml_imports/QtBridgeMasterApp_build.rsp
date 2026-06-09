@@ -1,0 +1,15 @@
+-rootPath
+C:/workspace/BridgeMaster/QtBridgeMaster
+-cmake-output
+-output-file
+C:/workspace/BridgeMaster/build/.qt/qml_imports/QtBridgeMasterApp_build.cmake
+-importPath
+C:/workspace/BridgeMaster/build/BridgeMaster
+-importPath
+C:/workspace/BridgeMaster/build
+-importPath
+C:/workspace/soft/msys2/mingw64/share/qt6/qml
+-qrcFiles
+C:/workspace/BridgeMaster/build/.qt/rcc/qmake_BridgeMaster.qrc
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0.qrc
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0_extra_qmldirs.qrc

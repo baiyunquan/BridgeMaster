@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/qt/qml/BridgeMaster">C:/workspace/BridgeMaster/build/BridgeMaster</file>
+
+  </qresource>
+</RCC>

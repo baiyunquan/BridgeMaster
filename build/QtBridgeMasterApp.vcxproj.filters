@@ -1,0 +1,179 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\QtBridgeMasterApp_autogen\mocs_compilation_Debug.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\QtBridgeMaster\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\QtBridgeMaster\src\app\AppController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\QtBridgeMaster\src\infra\ApiClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\QtBridgeMaster\src\infra\SseClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\qtbridgemasterapp_qmltyperegistrations.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.qt\rcc\qrc_qmake_BridgeMaster.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qmlcache_loader.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qml\Main_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qml\components\TopBar_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qml\pages\LobbyPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qml\pages\PlayerPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.rcc\qmlcache\QtBridgeMasterApp_qml\pages\AssistantPage_qml.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.qt\rcc\qrc_QtBridgeMasterApp_raw_qml_0.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\.qt\rcc\qrc_QtBridgeMasterApp_raw_qml_0_extra_qmldirs.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\QtBridgeMasterApp_autogen\mocs_compilation_Release.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\QtBridgeMasterApp_autogen\mocs_compilation_MinSizeRel.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\workspace\BridgeMaster\build\QtBridgeMasterApp_autogen\mocs_compilation_RelWithDebInfo.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\ddf_QtBridgeMasterApp.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\.qt\rcc\qmake_BridgeMaster.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\BridgeMaster\qmldir">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\.qt\rcc\QtBridgeMasterApp_raw_qml_0.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\.qt\rcc\QtBridgeMasterApp_raw_qml_0_extra_qmldirs.qrc">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\BridgeMaster\qml\qmldir">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\BridgeMaster\qml\components\qmldir">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\workspace\BridgeMaster\build\BridgeMaster\qml\pages\qmldir">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\77896f16c11e0e921fc942f3b9707033\qt6qtbridgemasterapp_metatypes.json.gen.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\d04cb1ba18d14ff64f81585d19a0000c\qtbridgemasterapp_qmltyperegistrations.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\ea19f5ed3dc110f396c995e0398efc8a\qrc_qmake_BridgeMaster.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\28377e1321e24e69bd3f6449b94110f4\QtBridgeMasterApp_qmlcache_loader.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\0c207218d5bba653584d75f8214cc9ae\Main_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\cf708c99519e1afd11c05807d89b80e6\TopBar_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\LobbyPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\PlayerPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\2be7b8de2f2e577a5c4776ed757de8c3\AssistantPage_qml.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\ea19f5ed3dc110f396c995e0398efc8a\qrc_QtBridgeMasterApp_raw_qml_0.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\build\CMakeFiles\ea19f5ed3dc110f396c995e0398efc8a\qrc_QtBridgeMasterApp_raw_qml_0_extra_qmldirs.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\workspace\BridgeMaster\QtBridgeMaster\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\workspace\BridgeMaster\build\meta_types\qt6qtbridgemasterapp_metatypes.json.gen">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\BridgeMaster\QtBridgeMaster\qml\Main.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\workspace\BridgeMaster\QtBridgeMaster\qml\components\TopBar.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\workspace\BridgeMaster\QtBridgeMaster\qml\pages\LobbyPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\workspace\BridgeMaster\QtBridgeMaster\qml\pages\PlayerPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\workspace\BridgeMaster\QtBridgeMaster\qml\pages\AssistantPage.qml">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6core_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6qml_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6network_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6quick_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6gui_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6qmlmeta_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6qmlmodels_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6qmlworkerscript_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\workspace\soft\msys2\mingw64\share\qt6\metatypes\qt6opengl_metatypes.json">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{664324BC-4F16-332C-82FB-3272FD7A68B1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{EB2B56BE-0C44-3157-B422-ECCE0A18A32B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Generated">
+      <UniqueIdentifier>{F9AFA8EA-B11E-3AD1-810C-A91E1E04276D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

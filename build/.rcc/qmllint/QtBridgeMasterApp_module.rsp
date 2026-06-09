@@ -1,0 +1,12 @@
+-I
+C:/workspace/BridgeMaster/build
+-I
+C:/workspace/soft/msys2/mingw64/share/qt6/qml
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/qmake_BridgeMaster.qrc
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0.qrc
+--resource
+C:/workspace/BridgeMaster/build/.qt/rcc/QtBridgeMasterApp_raw_qml_0_extra_qmldirs.qrc
+--module
+BridgeMaster

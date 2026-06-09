@@ -1,0 +1,10 @@
+module BridgeMaster
+typeinfo QtBridgeMasterApp.qmltypes
+prefer :/qt/qml/BridgeMaster/
+Main 1.0 qml/Main.qml
+TopBar 1.0 qml/components/TopBar.qml
+LobbyPage 1.0 qml/pages/LobbyPage.qml
+PlayerPage 1.0 qml/pages/PlayerPage.qml
+AssistantPage 1.0 qml/pages/AssistantPage.qml
+depends QtQuick
+
