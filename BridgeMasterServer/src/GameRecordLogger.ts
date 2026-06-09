@@ -64,7 +64,7 @@ export class GameRecordLogger {
   }
 
   public finishAssistantGame(room: Room): void {
-    if (room.mode !== "assistant") {
+    if (room.mode !== "assistant" && room.mode !== "exam") {
       return;
     }
 
@@ -133,6 +133,51 @@ export class GameRecordLogger {
       targetPlayerId: meta?.targetPlayerId,
     });
     this.activeGames.delete(room.id);
+  }
+
+  public abortAssistantGame(room: Room, reason: string, meta?: RoomEventMeta): void {
+    const state = room.assistantState;
+    if (!state) {
+      return;
+    }
+
+    const gameIndex = (this.roomGameIndex.get(room.id) ?? 0) + 1;
+    this.roomGameIndex.set(room.id, gameIndex);
+
+    this.writeRecord({
+      inviteCode: room.id,
+      roomName: room.name,
+      mode: room.mode,
+      gameIndex,
+      status: "aborted",
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+      playersByPosition: this.emptyPlayersByPosition(),
+      terminationReason: reason,
+      actorPlayerId: meta?.actorPlayerId,
+      targetPlayerId: meta?.targetPlayerId,
+      assistantResult: this.extractAssistantResult(state),
+    });
+  }
+
+  public getAllRecords(): GameRecordEntry[] {
+    if (!fs.existsSync(this.logPath)) {
+      return [];
+    }
+
+    const raw = fs.readFileSync(this.logPath, "utf8");
+    const records: GameRecordEntry[] = [];
+    for (const line of raw.trim().split(/\r?\n/)) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        records.push(JSON.parse(line) as GameRecordEntry);
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return records;
   }
 
   public clearRoom(roomId: string): void {

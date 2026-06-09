@@ -11,6 +11,7 @@ const rooms = ref<RoomSummary[]>([]);
 const error = ref("");
 const roomName = ref("晨雾桥牌桌");
 const roomMode = ref<RoomMode>("normal");
+const examName = ref("期末考试");
 const playerId = ref(`player-${Math.random().toString(36).slice(2, 8)}`);
 const playerName = ref("");
 const inviteCode = ref("");
@@ -58,13 +59,27 @@ async function loadRooms() {
   rooms.value = await getLobbyRooms();
 }
 
+function routeNameForMode(mode: RoomMode): string {
+  if (mode === "assistant") return "assistant";
+  if (mode === "exam") return "exam";
+  return "player-setup";
+}
+
 async function handleCreate() {
   try {
     error.value = "";
-    const room = await createRoom(roomName.value, playerId.value, playerName.value, roomMode.value);
+    const room = await createRoom(
+      roomName.value,
+      playerId.value,
+      playerName.value,
+      roomMode.value,
+      roomMode.value === "exam"
+        ? { examName: examName.value.trim() }
+        : undefined,
+    );
     inviteCode.value = room.id;
     await router.push({
-      name: room.mode === "assistant" ? "assistant" : "player-setup",
+      name: routeNameForMode(room.mode),
       params: { playerId: playerId.value },
       query: { room: room.id },
     });
@@ -79,7 +94,7 @@ async function handleJoin(targetCode?: string) {
     error.value = "";
     const room = await joinRoom(code, playerId.value, playerName.value);
     await router.push({
-      name: room.mode === "assistant" ? "assistant" : "player-setup",
+      name: routeNameForMode(room.mode),
       params: { playerId: playerId.value },
       query: { room: code },
     });
@@ -100,7 +115,10 @@ onMounted(() => {
       <div>
         <p class="eyebrow">Vue BridgeMaster</p>
       </div>
-      <LanguageSelector />
+      <div class="top-actions">
+        <button @click="router.push('/records')">📋 对局记录</button>
+        <LanguageSelector />
+      </div>
     </section>
 
     <section class="hero-panel compact">
@@ -137,7 +155,12 @@ onMounted(() => {
             <select v-model="roomMode">
               <option value="normal">普通对局（4人）</option>
               <option value="assistant">辅助模式（单人录入+DDS）</option>
+              <option value="exam">考试模式（单人按局完成）</option>
             </select>
+          </label>
+          <label v-if="roomMode === 'exam'">
+            考试名
+            <input v-model="examName" placeholder="例如：桥牌期末A卷" />
           </label>
           <button class="accent" type="submit">{{ t("createAndEnter") }}</button>
         </form>
@@ -160,7 +183,15 @@ onMounted(() => {
           <button v-for="room in rooms" :key="room.id" class="room-card" @click="handleJoin(room.id)">
             <strong>{{ room.name }}</strong>
             <span>{{ room.id }}</span>
-            <small>{{ room.mode === 'assistant' ? '辅助模式' : `${room.playerCount}/4 人` }}</small>
+            <small>
+              {{
+                room.mode === 'assistant'
+                  ? '辅助模式'
+                  : room.mode === 'exam'
+                    ? `考试模式 ${room.examInfo?.examName ?? ''} 第${room.examInfo?.boardNo ?? '?'}局`
+                    : `${room.playerCount}/4 人`
+              }}
+            </small>
           </button>
         </div>
       </article>

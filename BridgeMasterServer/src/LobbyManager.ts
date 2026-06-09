@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { execSync } from "node:child_process";
 import { BridgeGame } from "./BridgeGame";
 import { gameRecordLogger } from "./GameRecordLogger";
 import {
@@ -6,6 +9,7 @@ import {
   AssistantPositionedCard,
   BridgeGameState,
   Card,
+  ExamBoardResult,
   Player,
   PlayerPosition,
   Room,
@@ -19,6 +23,25 @@ const INVITE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const MAX_ROOM_EVENT_HISTORY = 120;
 const PLAYER_HEARTBEAT_TIMEOUT_MS = Number(process.env.PLAYER_HEARTBEAT_TIMEOUT_MS) || 60_000;
 const PLAYER_HEARTBEAT_SWEEP_MS = Number(process.env.PLAYER_HEARTBEAT_SWEEP_MS) || 10_000;
+const DEFAULT_RESULT_DATA_FILE = path.resolve(__dirname, "../result_data.json");
+const EXAM_SHEET_TEMPLATE_FILE = path.resolve(__dirname, "../exam_sheet.csv");
+const EXAM_EXPORT_DIR = path.resolve(__dirname, "../exams");
+
+interface ExamBoardDefinition {
+  boardNo: number;
+  vulnerability: string;
+}
+
+interface ExamRoomCreateOptions {
+  examName: string;
+  boardNo?: number;
+}
+
+interface ExamBoardStatus {
+  boardNo: number;
+  vulnerability: string;
+  completed: boolean;
+}
 
 export type RoomEventType =
   | "room_created"
@@ -101,7 +124,20 @@ export class LobbyManager {
 
   private roomHeartbeats = new Map<string, Map<string, number>>();
 
+  private readonly examBoards: ExamBoardDefinition[];
+
+  private readonly examBoardsByNo = new Map<number, ExamBoardDefinition>();
+
+  private readonly examProgressByName = new Map<string, Set<number>>();
+
+  private readonly examResultsByName = new Map<string, Map<number, ExamBoardResult>>();
+
   private constructor() {
+    this.examBoards = this.loadExamBoards();
+    for (const board of this.examBoards) {
+      this.examBoardsByNo.set(board.boardNo, board);
+    }
+
     setInterval(() => {
       this.releaseStalePlayers();
     }, PLAYER_HEARTBEAT_SWEEP_MS).unref();
@@ -114,7 +150,13 @@ export class LobbyManager {
     return LobbyManager.instance;
   }
 
-  public createRoom(roomName: string, creatorId: string, creatorName: string, mode: RoomMode = "normal"): Room {
+  public createRoom(
+    roomName: string,
+    creatorId: string,
+    creatorName: string,
+    mode: RoomMode = "normal",
+    examOptions?: ExamRoomCreateOptions,
+  ): Room {
     const trimmedName = roomName.trim();
     if (!trimmedName) {
       throw new Error("Room name is required.");
@@ -127,15 +169,30 @@ export class LobbyManager {
       position: null,
     };
 
+    const normalizedExam = mode === "exam" ? this.resolveExamRoomOptions(examOptions) : null;
+
     const room: Room = {
       id: inviteCode,
       name: trimmedName,
       mode,
+      ...(normalizedExam
+        ? {
+            examInfo: {
+              examName: normalizedExam.examName,
+              boardNo: normalizedExam.board?.boardNo ?? 0,
+              vulnerability: normalizedExam.board?.vulnerability ?? "N",
+            },
+          }
+        : {}),
       creatorId,
       players: [creator],
       gameState: emptyGameState(),
-      assistantState: mode === "assistant" ? emptyAssistantState() : null,
+      assistantState: mode === "assistant" || mode === "exam" ? emptyAssistantState() : null,
     };
+
+    if (mode === "exam" && room.assistantState && room.examInfo) {
+      room.assistantState.vulnerable = this.vulnerabilityToCode(room.examInfo.vulnerability);
+    }
 
     this.rooms.set(inviteCode, room);
     this.touchPlayerPresence(room.id, creatorId);
@@ -157,8 +214,8 @@ export class LobbyManager {
       throw new Error("Room is full (max 4 players).");
     }
 
-    if (room.mode === "assistant") {
-      throw new Error("Assistant room allows only the creator to operate.");
+    if (room.mode === "assistant" || room.mode === "exam") {
+      throw new Error("This room allows only the creator to operate.");
     }
 
     room.players.push({
@@ -176,8 +233,8 @@ export class LobbyManager {
 
   public sitDown(inviteCode: string, playerId: string, position: PlayerPosition): Room {
     const room = this.getRoomOrThrow(inviteCode);
-    if (room.mode === "assistant") {
-      throw new Error("Assistant room does not use seat assignment.");
+    if (room.mode === "assistant" || room.mode === "exam") {
+      throw new Error("This room mode does not use seat assignment.");
     }
     const player = room.players.find((p) => p.id === playerId);
 
@@ -202,13 +259,103 @@ export class LobbyManager {
 
   public getLobbyRooms(): RoomSummary[] {
     return Array.from(this.rooms.values())
-      .filter((room) => (room.mode === "assistant" ? true : room.players.length < 4))
+      .filter((room) => (room.mode === "normal" ? room.players.length < 4 : true))
       .map((room) => ({
         id: room.id,
         name: room.name,
         mode: room.mode,
         playerCount: room.players.length,
+        ...(room.examInfo ? { examInfo: room.examInfo } : {}),
       }));
+  }
+
+  public listExamBoards(examName: string): { examName: string; totalBoards: number; boards: ExamBoardStatus[] } {
+    const normalizedExamName = this.normalizeExamName(examName);
+    const completed = this.examProgressByName.get(normalizedExamName) ?? new Set<number>();
+
+    const boards = this.examBoards
+      .map((board) => ({
+        boardNo: board.boardNo,
+        vulnerability: board.vulnerability,
+        completed: completed.has(board.boardNo),
+      }))
+      .sort((a, b) => a.boardNo - b.boardNo);
+
+    return {
+      examName: normalizedExamName,
+      totalBoards: boards.length,
+      boards,
+    };
+  }
+
+  public getExamSheetData(examName: string): {
+    examName: string;
+    totalBoards: number;
+    completedCount: number;
+    boards: {
+      boardNo: number;
+      vulnerability: string;
+      completed: boolean;
+      contractStr: string;
+      resultText: string;
+      nsPoints: number;
+      ewPoints: number;
+    }[];
+  } {
+    const normalizedExamName = this.normalizeExamName(examName);
+    const completed = this.examProgressByName.get(normalizedExamName) ?? new Set<number>();
+    const results = this.examResultsByName.get(normalizedExamName);
+
+    const boards = this.examBoards.map((board) => {
+      const r = results?.get(board.boardNo);
+      return {
+        boardNo: board.boardNo,
+        vulnerability: board.vulnerability,
+        completed: completed.has(board.boardNo),
+        contractStr: r?.contractStr ?? "",
+        resultText: r?.resultText ?? "",
+        nsPoints: r?.nsPoints ?? 0,
+        ewPoints: r?.ewPoints ?? 0,
+      };
+    });
+
+    return {
+      examName: normalizedExamName,
+      totalBoards: boards.length,
+      completedCount: completed.size,
+      boards,
+    };
+  }
+
+  public examSelectBoard(inviteCode: string, playerId: string, boardNo: number): Room {
+    const room = this.getRoomOrThrow(inviteCode);
+    if (room.mode !== "exam") {
+      throw new Error("Room is not exam mode.");
+    }
+    if (room.creatorId !== playerId) {
+      throw new Error("Only the host can select a board.");
+    }
+    if (!room.examInfo) {
+      throw new Error("Exam info is missing.");
+    }
+
+    const board = this.examBoardsByNo.get(boardNo);
+    if (!board) {
+      throw new Error(`Board ${boardNo} is not available.`);
+    }
+
+    const examName = this.normalizeExamName(room.examInfo.examName);
+    const completedBoards = this.examProgressByName.get(examName);
+    if (completedBoards?.has(boardNo)) {
+      throw new Error(`Board ${boardNo} is already completed for exam ${examName}.`);
+    }
+
+    room.examInfo.boardNo = boardNo;
+    room.examInfo.vulnerability = board.vulnerability;
+
+    this.touchPlayerPresence(room.id, playerId);
+    this.emitRoomEvent(room, "assistant_cards_updated", { actorPlayerId: playerId });
+    return this.cloneRoom(room);
   }
 
   public getRoom(inviteCode: string): Room {
@@ -217,8 +364,8 @@ export class LobbyManager {
 
   public submitBid(inviteCode: string, playerId: string, bid: Parameters<BridgeGame["submitBid"]>[1]): Room {
     const room = this.getRoomOrThrow(inviteCode);
-    if (room.mode === "assistant") {
-      throw new Error("Assistant room does not support bidding API.");
+    if (room.mode === "assistant" || room.mode === "exam") {
+      throw new Error("This room mode does not support bidding API.");
     }
     const game = this.games.get(inviteCode);
 
@@ -237,8 +384,8 @@ export class LobbyManager {
 
   public submitCard(inviteCode: string, playerId: string, card: Parameters<BridgeGame["submitCard"]>[1]): Room {
     const room = this.getRoomOrThrow(inviteCode);
-    if (room.mode === "assistant") {
-      throw new Error("Assistant room does not support standard play API.");
+    if (room.mode === "assistant" || room.mode === "exam") {
+      throw new Error("This room mode does not support standard play API.");
     }
     const game = this.games.get(inviteCode);
 
@@ -363,7 +510,11 @@ export class LobbyManager {
     state.dummyPosition = this.partnerPosition(contract.declarer);
     state.openingLeader = this.nextPosition(contract.declarer);
     state.turn = state.openingLeader;
-    state.vulnerable = Math.max(0, Math.min(3, Math.trunc(vulnerable)));
+    if (room.mode === "exam" && room.examInfo) {
+      state.vulnerable = this.vulnerabilityToCode(room.examInfo.vulnerability);
+    } else {
+      state.vulnerable = Math.max(0, Math.min(3, Math.trunc(vulnerable)));
+    }
     this.updateAssistantWorkflowState(state);
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_contract_set", { actorPlayerId: playerId });
@@ -434,6 +585,9 @@ export class LobbyManager {
     }
 
     this.updateAssistantWorkflowState(state);
+    if (room.mode === "exam" && state.entryTarget === "completed") {
+      this.markExamBoardCompleted(room);
+    }
 
     this.touchPlayerPresence(room.id, playerId);
     this.emitRoomEvent(room, "assistant_play_updated", { actorPlayerId: playerId });
@@ -617,8 +771,8 @@ export class LobbyManager {
 
   private getAssistantRoomForOperator(inviteCode: string, playerId: string): Room {
     const room = this.getRoomOrThrow(inviteCode);
-    if (room.mode !== "assistant") {
-      throw new Error("Room is not assistant mode.");
+    if (room.mode !== "assistant" && room.mode !== "exam") {
+      throw new Error("Room is not assistant/exam mode.");
     }
 
     if (!room.players.some((player) => player.id === playerId)) {
@@ -626,6 +780,383 @@ export class LobbyManager {
     }
 
     return room;
+  }
+
+  private resolveExamRoomOptions(examOptions?: ExamRoomCreateOptions): {
+    examName: string;
+    board: ExamBoardDefinition | null;
+  } {
+    if (!examOptions) {
+      throw new Error("examName is required for exam mode.");
+    }
+
+    const examName = this.normalizeExamName(examOptions.examName);
+
+    if (examOptions.boardNo == null) {
+      return { examName, board: null };
+    }
+
+    const boardNo = Math.trunc(examOptions.boardNo);
+    const board = this.examBoardsByNo.get(boardNo);
+    if (!board) {
+      throw new Error(`Board ${boardNo} is not available.`);
+    }
+
+    const completedBoards = this.examProgressByName.get(examName);
+    if (completedBoards?.has(boardNo)) {
+      throw new Error(`Board ${boardNo} is already completed for exam ${examName}.`);
+    }
+
+    return { examName, board };
+  }
+
+  private normalizeExamName(name: string): string {
+    const normalized = name.trim();
+    if (!normalized) {
+      throw new Error("examName is required.");
+    }
+    return normalized;
+  }
+
+  private loadExamBoards(): ExamBoardDefinition[] {
+    const fromResultData = this.tryLoadExamBoardsFromResultData();
+    if (fromResultData.length > 0) {
+      return fromResultData;
+    }
+
+    const fromTemplate = this.loadExamBoardsFromTemplate();
+    if (fromTemplate.length > 0) {
+      return fromTemplate;
+    }
+
+    throw new Error("No exam board data found. Provide result_data.json or exam_sheet.csv.");
+  }
+
+  private tryLoadExamBoardsFromResultData(): ExamBoardDefinition[] {
+    const resultDataPath = process.env.RESULT_DATA_PATH
+      ? path.resolve(process.env.RESULT_DATA_PATH)
+      : DEFAULT_RESULT_DATA_FILE;
+    if (!fs.existsSync(resultDataPath)) {
+      return [];
+    }
+
+    const raw = fs.readFileSync(resultDataPath, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    const items = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as { boards?: unknown[] }).boards)
+        ? (parsed as { boards: unknown[] }).boards
+        : [];
+
+    const boards: ExamBoardDefinition[] = [];
+    for (const item of items) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const source = item as Record<string, unknown>;
+      const rawNo = source.boardNo ?? source.board ?? source.no;
+      const rawVul = source.vulnerability ?? source.vulnerable ?? source.vul;
+      const boardNo = typeof rawNo === "number" ? Math.trunc(rawNo) : Number(rawNo);
+      if (!Number.isFinite(boardNo) || boardNo <= 0) {
+        continue;
+      }
+      boards.push({
+        boardNo,
+        vulnerability: this.normalizeVulnerability(rawVul),
+      });
+    }
+
+    return this.normalizeBoardList(boards);
+  }
+
+  private loadExamBoardsFromTemplate(): ExamBoardDefinition[] {
+    if (!fs.existsSync(EXAM_SHEET_TEMPLATE_FILE)) {
+      return [];
+    }
+
+    const lines = fs
+      .readFileSync(EXAM_SHEET_TEMPLATE_FILE, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const boards: ExamBoardDefinition[] = [];
+    for (const line of lines.slice(1)) {
+      const [boardText, vulText] = line.split(",");
+      const boardNo = Number(boardText);
+      if (!Number.isFinite(boardNo) || boardNo <= 0) {
+        continue;
+      }
+
+      boards.push({
+        boardNo: Math.trunc(boardNo),
+        vulnerability: this.normalizeVulnerability(vulText),
+      });
+    }
+
+    return this.normalizeBoardList(boards);
+  }
+
+  private normalizeBoardList(boards: ExamBoardDefinition[]): ExamBoardDefinition[] {
+    const dedup = new Map<number, ExamBoardDefinition>();
+    for (const board of boards) {
+      if (!dedup.has(board.boardNo)) {
+        dedup.set(board.boardNo, board);
+      }
+    }
+
+    return Array.from(dedup.values()).sort((a, b) => a.boardNo - b.boardNo);
+  }
+
+  private normalizeVulnerability(raw: unknown): string {
+    const value = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+    if (value === "N" || value === "NONE") {
+      return "N";
+    }
+    if (value === "N-S" || value === "NS") {
+      return "N-S";
+    }
+    if (value === "E-W" || value === "EW") {
+      return "E-W";
+    }
+    if (value === "B" || value === "BOTH") {
+      return "B";
+    }
+    return "N";
+  }
+
+  private vulnerabilityToCode(vulnerability: string): number {
+    if (vulnerability === "N-S") {
+      return 1;
+    }
+    if (vulnerability === "E-W") {
+      return 2;
+    }
+    if (vulnerability === "B") {
+      return 3;
+    }
+    return 0;
+  }
+
+  private computeAssistantResult(state: AssistantGameState): ExamBoardResult {
+    const POSITION_SIDES: Record<string, string> = { N: "NS", S: "NS", E: "EW", W: "EW" };
+    const RANK_ORDER: Record<string, number> = { "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, J: 11, Q: 12, K: 13, A: 14 };
+
+    const contract = state.contract;
+    const level = contract?.level ?? 1;
+    const strain = contract?.strain ?? "NT";
+    const declarer = contract?.declarer ?? "N";
+    const declarerSide = POSITION_SIDES[declarer] === "NS" ? "NS" : "EW";
+
+    const trump = strain === "NT" ? null : strain;
+    const targetTricks = 6 + level;
+
+    // Group played cards into tricks (4 per trick)
+    const allPlays = state.playedCards;
+    let declarerTricks = 0;
+
+    for (let i = 0; i < allPlays.length; i += 4) {
+      const trick = allPlays.slice(i, i + 4);
+      if (trick.length < 4) {
+        break; // incomplete trick
+      }
+
+      const leadSuit = trick[0].card.suit;
+      let winner = trick[0];
+
+      for (const play of trick.slice(1)) {
+        const wIsTrump = trump ? winner.card.suit === trump : false;
+        const pIsTrump = trump ? play.card.suit === trump : false;
+
+        if (pIsTrump && !wIsTrump) { winner = play; continue; }
+        if (pIsTrump && wIsTrump && RANK_ORDER[play.card.rank] > RANK_ORDER[winner.card.rank]) { winner = play; continue; }
+        if (!wIsTrump && !pIsTrump) {
+          const wFollows = winner.card.suit === leadSuit;
+          const pFollows = play.card.suit === leadSuit;
+          if (!wFollows && pFollows) { winner = play; continue; }
+          if (wFollows && pFollows && RANK_ORDER[play.card.rank] > RANK_ORDER[winner.card.rank]) { winner = play; }
+        }
+      }
+
+      if (POSITION_SIDES[winner.position] === declarerSide) {
+        declarerTricks += 1;
+      }
+    }
+
+    const overtricks = Math.max(0, declarerTricks - targetTricks);
+    const undertricks = Math.max(0, targetTricks - declarerTricks);
+    const made = declarerTricks >= targetTricks;
+
+    // Score computation (simplified duplicate bridge scoring)
+    let nsPoints = 0;
+    let ewPoints = 0;
+
+    if (made) {
+      // Contract points (simplified - undoubled)
+      let cp = 0;
+      if (strain === "NT") cp = 40 + (level - 1) * 30;
+      else if (strain === "H" || strain === "S") cp = level * 30;
+      else cp = level * 20;
+
+      const op = strain === "C" || strain === "D" ? overtricks * 20 : overtricks * 30;
+      const total = cp + op;
+
+      if (declarerSide === "NS") { nsPoints = total; ewPoints = 0; }
+      else { nsPoints = 0; ewPoints = total; }
+    } else {
+      const penalty = undertricks * (state.vulnerable ? 200 : 100);
+      if (declarerSide === "NS") { nsPoints = -penalty; ewPoints = penalty; }
+      else { nsPoints = penalty; ewPoints = -penalty; }
+    }
+
+    const resultText = made
+      ? `+${overtricks > 0 ? String(overtricks) : "="}`
+      : `-${undertricks}`;
+
+    const contractStr = `${level}${strain}`;
+
+    return {
+      boardNo: 0,
+      declarerSide,
+      contractStr,
+      tricksWon: declarerTricks,
+      targetTricks,
+      nsPoints,
+      ewPoints,
+      winnerSide: made ? declarerSide : (declarerSide === "NS" ? "EW" : "NS"),
+      resultText,
+    };
+  }
+
+  private markExamBoardCompleted(room: Room): void {
+    if (room.mode !== "exam" || !room.examInfo) {
+      return;
+    }
+
+    const boardNo = room.examInfo.boardNo;
+    if (!boardNo || boardNo <= 0) {
+      return;
+    }
+
+    const examName = this.normalizeExamName(room.examInfo.examName);
+
+    let completed = this.examProgressByName.get(examName);
+    if (!completed) {
+      completed = new Set<number>();
+      this.examProgressByName.set(examName, completed);
+    }
+    completed.add(boardNo);
+
+    // Compute and store result for this board
+    const state = room.assistantState;
+    if (state) {
+      const result = this.computeAssistantResult(state);
+      let results = this.examResultsByName.get(examName);
+      if (!results) {
+        results = new Map<number, ExamBoardResult>();
+        this.examResultsByName.set(examName, results);
+      }
+      results.set(boardNo, result);
+    }
+
+    if (completed.size >= this.examBoards.length) {
+      this.writeExamSheet(examName, completed);
+    }
+  }
+
+  private writeExamSheet(examName: string, completedBoards: Set<number>): void {
+    const safeName = examName.replace(/[\\/:*?"<>|]/g, "_");
+    fs.mkdirSync(EXAM_EXPORT_DIR, { recursive: true });
+    const csvPath = path.join(EXAM_EXPORT_DIR, `exam_sheet_${safeName}.csv`);
+    const results = this.examResultsByName.get(examName);
+
+    const lines: string[] = [];
+    lines.push("轮次,局 况,定约,结果,南北得分,东西得分,备注");
+
+    for (const board of this.examBoards) {
+      const r = results?.get(board.boardNo);
+      const completed = completedBoards.has(board.boardNo);
+      const contractStr = r?.contractStr ?? "";
+      const resultText = completed ? (r?.resultText ?? "完成") : "";
+      const nsScore = completed ? String(r?.nsPoints ?? "") : "";
+      const ewScore = completed ? String(r?.ewPoints ?? "") : "";
+      lines.push(`${board.boardNo},${board.vulnerability},${contractStr},${resultText},${nsScore},${ewScore},`);
+    }
+
+    lines.push("合计,,,,,,");
+    fs.writeFileSync(csvPath, `${lines.join("\n")}\n`, "utf8");
+
+    // Also generate Markdown + PDF via Python script
+    this.generateExamPdf(examName, safeName, completedBoards);
+  }
+
+  private generateExamPdf(examName: string, safeName: string, completedBoards: Set<number>): void {
+    const pythonScript = path.resolve(__dirname, "../generate_exam_pdf.py");
+    if (!fs.existsSync(pythonScript)) {
+      console.warn(`  [exam] Python PDF script not found: ${pythonScript}`);
+      return;
+    }
+
+    const results = this.examResultsByName.get(examName);
+
+    const boardsJson = JSON.stringify(
+      this.examBoards.map((board) => {
+        const r = results?.get(board.boardNo);
+        return {
+          boardNo: board.boardNo,
+          vulnerability: board.vulnerability,
+          completed: completedBoards.has(board.boardNo),
+          contractStr: r?.contractStr ?? "",
+          resultText: r?.resultText ?? "",
+          nsPoints: r?.nsPoints ?? 0,
+          ewPoints: r?.ewPoints ?? 0,
+          winnerSide: r?.winnerSide ?? "",
+        };
+      }),
+    );
+
+    const inputJson = JSON.stringify({ examName, boards: JSON.parse(boardsJson) });
+
+    try {
+      // Try multiple Python paths
+      const pythonCandidates = [
+        process.env.PYTHON,
+        process.env.PYTHON_PATH,
+        "C:\\msys64\\ucrt64\\bin\\python.exe",
+        "C:\\msys64\\usr\\bin\\python.exe",
+        "python3",
+        "python",
+      ].filter(Boolean) as string[];
+
+      let pythonExe = "";
+      for (const candidate of pythonCandidates) {
+        try {
+          execSync(`"${candidate}" --version`, { timeout: 5000, encoding: "utf8" });
+          pythonExe = candidate;
+          break;
+        } catch {
+          continue;
+        }
+      }
+
+      if (!pythonExe) {
+        console.warn("  [exam] Python not found, skipping PDF generation");
+        return;
+      }
+
+      const result = execSync(
+        `"${pythonExe}" "${pythonScript}"`,
+        { input: inputJson, timeout: 30_000, encoding: "utf8", maxBuffer: 1024 * 1024 },
+      );
+      const lines = result.trim().split("\n");
+      const jsonLine = lines.find((l) => l.startsWith("{"));
+      if (jsonLine) {
+        const paths = JSON.parse(jsonLine) as { markdown: string; pdf: string };
+        console.log(`  [exam] PDF generated: ${paths.pdf}`);
+      }
+    } catch (err) {
+      console.warn(`  [exam] PDF generation failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private sanitizeCardList(cards: Card[]): Card[] {
@@ -777,6 +1308,8 @@ export class LobbyManager {
     if (room.players.length === 0) {
       if (room.gameState.phase !== "waiting") {
         gameRecordLogger.abortGame(room, eventType, meta);
+      } else if (room.mode === "assistant" || room.mode === "exam") {
+        gameRecordLogger.abortAssistantGame(room, eventType, meta);
       }
       this.clearRoomState(room.id);
       return null;
@@ -795,6 +1328,10 @@ export class LobbyManager {
       this.emitRoomEvent(room, eventType, meta);
       this.emitRoomEvent(room, "game_reset");
       return this.cloneRoom(room);
+    } else if (room.mode === "assistant" || room.mode === "exam") {
+      gameRecordLogger.abortAssistantGame(room, eventType, meta);
+      this.clearRoomState(room.id);
+      return null;
     }
 
     this.emitRoomEvent(room, eventType, meta);

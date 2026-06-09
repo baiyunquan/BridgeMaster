@@ -104,7 +104,18 @@ function parseRoomMode(value: unknown): RoomMode {
   if (value === "assistant") {
     return "assistant";
   }
+  if (value === "exam") {
+    return "exam";
+  }
   return "normal";
+}
+
+function parseExamBoardNo(value: unknown): number {
+  const boardNo = typeof value === "number" ? Math.trunc(value) : Number(value);
+  if (!Number.isFinite(boardNo) || boardNo <= 0) {
+    throw new Error("boardNo must be a positive number.");
+  }
+  return boardNo;
 }
 
 function parseBid(value: unknown): Bid {
@@ -234,6 +245,25 @@ app.get("/api/lobby/rooms", (_req: Request, res: Response) => {
   res.json(lobbyManager.getLobbyRooms());
 });
 
+app.get("/api/exams/boards", (req: Request, res: Response) => {
+  try {
+    const examName = requiredString(req.query.examName, "examName");
+    res.json(lobbyManager.listExamBoards(examName));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get("/api/exams/sheet/:examName", (req: Request, res: Response) => {
+  try {
+    const examName = requiredString(req.params.examName, "examName");
+    const data = lobbyManager.getExamSheetData(examName);
+    res.json(data);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get("/api/lobby/rooms/:inviteCode", (req: Request, res: Response) => {
   try {
     const room = lobbyManager.getRoom(getInviteCode(req));
@@ -297,7 +327,13 @@ app.post("/api/lobby/rooms", (req: Request, res: Response) => {
     const creatorId = requiredString(req.body?.creatorId, "creatorId");
     const creatorName = optionalString(req.body?.creatorName) ?? creatorId;
     const mode = parseRoomMode(req.body?.mode);
-    const room = lobbyManager.createRoom(roomName, creatorId, creatorName, mode);
+    const room =
+      mode === "exam"
+        ? lobbyManager.createRoom(roomName, creatorId, creatorName, mode, {
+            examName: requiredString(req.body?.examName, "examName"),
+            ...(req.body?.boardNo != null ? { boardNo: parseExamBoardNo(req.body.boardNo) } : {}),
+          })
+        : lobbyManager.createRoom(roomName, creatorId, creatorName, mode);
     res.status(201).json(room);
   } catch (error) {
     handleError(res, error);
@@ -414,6 +450,17 @@ app.post("/api/lobby/rooms/:inviteCode/play", (req: Request, res: Response) => {
   }
 });
 
+app.post("/api/lobby/rooms/:inviteCode/exam/board", (req: Request, res: Response) => {
+  try {
+    const playerId = requiredString(req.body?.playerId, "playerId");
+    const boardNo = parseExamBoardNo(req.body?.boardNo);
+    const room = lobbyManager.examSelectBoard(getInviteCode(req), playerId, boardNo);
+    res.json(room);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post("/api/lobby/rooms/:inviteCode/assistant/operator", (req: Request, res: Response) => {
   try {
     const playerId = requiredString(req.body?.playerId, "playerId");
@@ -495,6 +542,15 @@ app.get("/api/lobby/rooms/:inviteCode/assistant/analysis", (req: Request, res: R
 
 app.get("/api/game-records", (_req: Request, res: Response) => {
   res.json({ path: gameRecordLogger.getLogPath() });
+});
+
+app.get("/api/game-records/data", (_req: Request, res: Response) => {
+  try {
+    const records = gameRecordLogger.getAllRecords();
+    res.json(records);
+  } catch (error) {
+    handleError(res, error);
+  }
 });
 
 app.listen(PORT, () => {

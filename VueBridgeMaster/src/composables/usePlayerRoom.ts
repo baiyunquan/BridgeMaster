@@ -62,6 +62,14 @@ export function usePlayerRoom() {
       leaveSent.value = false;
       await joinRoom(inviteCode.value, playerId.value, displayName.value || undefined);
       room.value = await getRoom(inviteCode.value);
+      if (room.value.mode === "exam") {
+        await router.replace({
+          name: "exam",
+          params: { playerId: playerId.value },
+          query: { room: inviteCode.value },
+        });
+        return;
+      }
       if (room.value.mode === "assistant") {
         await router.replace({
           name: "assistant",

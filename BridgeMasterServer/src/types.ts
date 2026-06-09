@@ -17,7 +17,25 @@ export type Rank =
   | "A";
 
 export type PlayerPosition = "N" | "E" | "S" | "W";
-export type RoomMode = "normal" | "assistant";
+export type RoomMode = "normal" | "assistant" | "exam";
+
+export interface ExamRoomInfo {
+  examName: string;
+  boardNo: number;
+  vulnerability: string;
+}
+
+export interface ExamBoardResult {
+  boardNo: number;
+  declarerSide: string;
+  contractStr: string;
+  tricksWon: number;
+  targetTricks: number;
+  nsPoints: number;
+  ewPoints: number;
+  winnerSide: string;
+  resultText: string;
+}
 
 export interface Card {
   suit: Suit;
@@ -107,6 +125,7 @@ export interface BridgeGameState {
 export interface AssistantContract {
   strain: Strain;
   declarer: PlayerPosition;
+  level?: number;
 }
 
 export interface AssistantPositionedCard {
@@ -153,6 +172,7 @@ export interface Room {
   id: string;
   name: string;
   mode: RoomMode;
+  examInfo?: ExamRoomInfo;
   creatorId: string;
   players: Player[];
   gameState: BridgeGameState;
@@ -169,4 +189,5 @@ export interface RoomSummary {
   name: string;
   mode: RoomMode;
   playerCount: number;
+  examInfo?: ExamRoomInfo;
 }

@@ -14,9 +14,26 @@ const router = createRouter({
       component: LobbyView,
     },
     {
+      path: "/records",
+      name: "records",
+      component: () => import("@/views/RecordsView.vue"),
+    },
+    {
+      path: "/exam-sheet/:examName",
+      name: "exam-sheet",
+      component: () => import("@/views/ExamSheetView.vue"),
+      props: true,
+    },
+    {
       path: "/assistant/:playerId",
       name: "assistant",
       component: AssistantView,
+      props: true,
+    },
+    {
+      path: "/exam/:playerId",
+      name: "exam",
+      component: () => import("@/views/ExamView.vue"),
       props: true,
     },
     {

@@ -5,6 +5,7 @@ import type {
   Card,
   DdsAnalysisRequest,
   DdsAnalysisResult,
+  ExamBoardStatus,
   PlayerPosition,
   Room,
   RoomMode,
@@ -108,10 +109,44 @@ export function getRoom(inviteCode: string): Promise<Room> {
   return request<Room>(`/api/lobby/rooms/${inviteCode}`);
 }
 
-export function createRoom(roomName: string, creatorId: string, creatorName?: string, mode: RoomMode = "normal"): Promise<Room> {
+export function getExamBoards(examName: string): Promise<{ examName: string; totalBoards: number; boards: ExamBoardStatus[] }> {
+  return request<{ examName: string; totalBoards: number; boards: ExamBoardStatus[] }>(
+    `/api/exams/boards?examName=${encodeURIComponent(examName)}`,
+  );
+}
+
+export function getExamSheet(examName: string): Promise<{
+  examName: string;
+  totalBoards: number;
+  completedCount: number;
+  boards: (ExamBoardStatus & { contractStr: string; resultText: string; nsPoints: number; ewPoints: number })[];
+}> {
+  return request(`/api/exams/sheet/${encodeURIComponent(examName)}`);
+}
+
+export function selectExamBoard(inviteCode: string, playerId: string, boardNo: number): Promise<Room> {
+  return request<Room>(`/api/lobby/rooms/${inviteCode}/exam/board`, {
+    method: "POST",
+    body: JSON.stringify({ playerId, boardNo }),
+  });
+}
+
+export function createRoom(
+  roomName: string,
+  creatorId: string,
+  creatorName?: string,
+  mode: RoomMode = "normal",
+  exam?: { examName: string; boardNo: number },
+): Promise<Room> {
   return request<Room>("/api/lobby/rooms", {
     method: "POST",
-    body: JSON.stringify({ roomName, creatorId, creatorName, mode }),
+    body: JSON.stringify({
+      roomName,
+      creatorId,
+      creatorName,
+      mode,
+      ...(exam ? { examName: exam.examName, boardNo: exam.boardNo } : {}),
+    }),
   });
 }
 
@@ -241,6 +276,10 @@ export function resetAssistantBoard(inviteCode: string, playerId: string): Promi
 
 export function getAssistantAnalysisPayload(inviteCode: string, playerId: string): Promise<DdsAnalysisRequest> {
   return request<DdsAnalysisRequest>(`/api/lobby/rooms/${inviteCode}/assistant/analysis?playerId=${encodeURIComponent(playerId)}`);
+}
+
+export function getGameRecords(): Promise<Record<string, unknown>[]> {
+  return request<Record<string, unknown>[]>("/api/game-records/data");
 }
 
 export function getAuthConfig(): Promise<{ enabled: boolean }> {
